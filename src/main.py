@@ -4,8 +4,10 @@ import sqlite3
 import stat
 import subprocess
 from datetime import date
+from io import BytesIO
 from pathlib import Path
 
+import pymupdf
 from flask import Flask, abort, redirect, render_template, request, send_file, url_for
 
 from .config import Config, load_config
@@ -168,6 +170,7 @@ def create_app(config: Config | None = None) -> Flask:
             book=book,
             error=error,
             cover_available=indexer.covers.find(book.files) is not None,
+            pdf_available=any(file.extension == "pdf" for file in book.files),
             similar_books=similar_books,
             cover_book_ids={
                 suggestion.book.id
@@ -219,6 +222,36 @@ def create_app(config: Config | None = None) -> Flask:
         if path is None:
             abort(404)
         return send_file(path, mimetype="image/png", conditional=True, max_age=0)
+
+    @app.get("/books/<int:book_id>/preview/<int:page_number>")
+    def preview_page(book_id: int, page_number: int):
+        book = find_book(book_id)
+        file = next((file for file in book.files if file.extension == "pdf"), None)
+        if file is None or not Path(file.file_path).is_file():
+            abort(404)
+        try:
+            with pymupdf.open(file.file_path) as document:
+                if not document.is_pdf or document.needs_pass:
+                    abort(422)
+                page_count = document.page_count
+                if not 1 <= page_number <= page_count:
+                    abort(404)
+                page = document.load_page(page_number - 1)
+                if page.rect.is_empty or page.rect.is_infinite:
+                    abort(422)
+                scale = min(666 / page.rect.width, 1000 / page.rect.height)
+                image = page.get_pixmap(
+                    matrix=pymupdf.Matrix(scale, scale),
+                    colorspace=pymupdf.csRGB,
+                    alpha=False,
+                ).tobytes("png")
+        except OSError, RuntimeError, ValueError:
+            app.logger.exception("Unable to preview book %s", file.file_path)
+            abort(422)
+        response = send_file(BytesIO(image), mimetype="image/png")
+        response.headers["X-Page-Count"] = str(page_count)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.post("/books/<int:book_id>/files/<int:file_id>/open")
     def open_book(book_id: int, file_id: int):

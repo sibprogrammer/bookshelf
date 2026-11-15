@@ -1,5 +1,67 @@
 "use strict";
 
+const pdfPreview = document.querySelector("[data-pdf-preview]");
+if (pdfPreview) {
+  const previous = pdfPreview.querySelector("[data-preview-previous]");
+  const next = pdfPreview.querySelector("[data-preview-next]");
+  const status = pdfPreview.parentElement.querySelector("[data-preview-status]");
+  const firstPageUrl = new URL(pdfPreview.dataset.pdfPreview, window.location.href);
+  let pageNumber = 0;
+  let pageCount = 0;
+  let loading = false;
+
+  async function showPage(number) {
+    if (loading || number < 1 || (pageCount && number > pageCount)) return;
+    loading = true;
+    previous.disabled = true;
+    next.disabled = true;
+    pdfPreview.setAttribute("aria-busy", "true");
+    let imageUrl;
+
+    try {
+      const response = await fetch(new URL(String(number), firstPageUrl));
+      if (!response.ok) throw new Error("PDF preview unavailable");
+      const count = Number(response.headers.get("X-Page-Count"));
+      if (!Number.isSafeInteger(count) || count < number) {
+        throw new Error("Invalid PDF page count");
+      }
+      imageUrl = URL.createObjectURL(await response.blob());
+      const image = new Image(333, 500);
+      image.className = "book-cover book-preview-image img-fluid rounded shadow-sm";
+      image.alt = `Page ${number} of ${count} of ${pdfPreview.dataset.bookTitle}`;
+      image.src = imageUrl;
+      await image.decode();
+      pdfPreview.querySelector(".book-cover, .book-cover-placeholder").replaceWith(image);
+      pageNumber = number;
+      pageCount = count;
+      previous.hidden = false;
+      next.hidden = false;
+      status.textContent = `Page ${pageNumber} of ${pageCount}`;
+    } catch {
+      status.textContent = pageNumber
+        ? `Page ${pageNumber} of ${pageCount}. Unable to load page ${number}. Try again.`
+        : "PDF preview unavailable.";
+    } finally {
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      loading = false;
+      previous.disabled = pageNumber <= 1;
+      next.disabled = !pageCount || pageNumber >= pageCount;
+      pdfPreview.removeAttribute("aria-busy");
+    }
+  }
+
+  previous.addEventListener("click", () => showPage(pageNumber - 1));
+  next.addEventListener("click", () => showPage(pageNumber + 1));
+  pdfPreview.addEventListener("keydown", (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      showPage(pageNumber + (event.key === "ArrowLeft" ? -1 : 1));
+    }
+  });
+  showPage(1);
+}
+
 const indexForm = document.querySelector("#index-form");
 if (indexForm) {
   indexForm.addEventListener("submit", () => {

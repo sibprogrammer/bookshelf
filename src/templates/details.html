@@ -6,16 +6,27 @@
 {% endblock %}
 {% block content %}
   <div class="row g-4 align-items-start">
-    <aside class="col-md-auto" aria-label="Book cover">
-      <div class="book-cover-frame">
+    <aside class="col-md-auto" aria-label="{{ 'PDF preview' if pdf_available else 'Book cover' }}">
+      <div class="book-cover-frame"{% if pdf_available %} data-pdf-preview="{{ url_for('preview_page', book_id=book.id, page_number=1) }}" data-book-title="{{ book.file_title }}" tabindex="0" role="group" aria-label="PDF preview. Use the left and right arrow keys to turn pages."{% endif %}>
         {% if cover_available %}
         <img class="book-cover img-fluid rounded shadow-sm" src="{{ url_for('cover', book_id=book.id) }}" alt="Cover of {{ book.file_title }}" width="333" height="500">
         {% else %}
         <div class="book-cover-placeholder border rounded text-body-secondary d-flex align-items-center justify-content-center">Cover unavailable</div>
         {% endif %}
+        {% if pdf_available %}
+        <button class="book-preview-button book-preview-previous btn btn-light rounded-circle shadow-sm" type="button" data-preview-previous aria-label="Previous PDF page" title="Previous page" hidden disabled>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <button class="book-preview-button book-preview-next btn btn-light rounded-circle shadow-sm" type="button" data-preview-next aria-label="Next PDF page" title="Next page" hidden disabled>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        {% endif %}
         {% include "_favorite_badge.html" %}
         {% include "_finished_badge.html" %}
       </div>
+      {% if pdf_available %}
+      <p class="book-preview-status small text-body-secondary text-center mt-2 mb-0" data-preview-status role="status" aria-live="polite"></p>
+      {% endif %}
     </aside>
     <div class="col-md">
       {% set metadata = book.metadata %}

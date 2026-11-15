@@ -29,9 +29,10 @@ def test_index_and_details_flow(app, client, library):
     assert response.status_code == 200
     assert response.content_type == "text/html; charset=utf-8"
     assert b"&lt;b&gt;&amp;book</h1>" in response.data
-    assert book.files[0].sha256.encode() in response.data
-    assert b"Open PDF locally" in response.data
-    assert b"Absolute path" in response.data
+    assert b">PDF</button>" in response.data
+    assert b"Available formats" not in response.data
+    assert b"Absolute path" not in response.data
+    assert b"SHA-256" not in response.data
     assert client.get("/missing").status_code == 404
 
 
@@ -61,9 +62,10 @@ def test_open_book_uses_stored_path_and_handles_failures(app, client, library):
     assert calls == []
     response = client.post(url + "?path=/unindexed.pdf")
     assert response.status_code == 303
-    assert response.location == f"/books/{book.id}?opened=1"
+    assert response.location == f"/books/{book.id}"
     assert calls == [str(path.resolve())]
-    assert b"Opening book in your default reader" in client.get(response.location).data
+    assert b"alert-success" not in client.get(response.location).data
+    assert b"Opening book" not in client.get(f"/books/{book.id}?opened=1").data
 
     def fail(path):
         raise subprocess.CalledProcessError(1, "open")
@@ -77,7 +79,7 @@ def test_open_book_uses_stored_path_and_handles_failures(app, client, library):
     assert b"Book file not found" in client.post(url).data
     path.mkdir()
     assert client.post(url).status_code == 404
-    assert book.files[0].sha256.encode() in client.get(f"/books/{book.id}").data
+    assert b">PDF</button>" in client.get(f"/books/{book.id}").data
 
 
 @pytest.mark.parametrize("book_id", ["invalid", "0", "-1", "99999", "9" * 30])
@@ -163,20 +165,20 @@ def test_dual_format_book_renders_once_and_each_format_opens_its_own_file(
     assert b">EPUB</button>" in response.data
     details = client.get(f"/books/{book.id}")
     assert b">A Book</h1>" in details.data
-    assert b"Open PDF locally" in details.data
-    assert b"Open EPUB locally" in details.data
+    assert b">PDF</button>" in details.data
+    assert b">EPUB</button>" in details.data
+    assert b"Available formats" not in details.data
     calls = []
     app.extensions["open_book"] = calls.append
     for file in book.files:
         url = f"/books/{book.id}/files/{file.id}/open"
         assert f'action="{url}"'.encode() in response.data
         assert f'action="{url}"'.encode() in details.data
-        assert file.file_path.encode() in details.data
-        assert file.sha256.encode() in details.data
         assert client.get(url).status_code == 405
         opened = client.post(url + "?path=/unindexed.pdf&extension=wrong")
         assert opened.status_code == 303
-        assert opened.location == f"/books/{book.id}?opened=1"
+        assert opened.location == f"/books/{book.id}"
+        assert b"alert-success" not in client.get(opened.location).data
         assert calls[-1] == file.file_path
     assert calls == [str(pdf.resolve()), str(epub.resolve())]
     pdf.unlink()

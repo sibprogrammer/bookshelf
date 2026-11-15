@@ -292,12 +292,13 @@ def test_details_show_available_metadata_safely(app, client):
         "A description.",
         "Programming",
         "9780132350884",
-        "9780201616224",
     ]:
         assert escape(value).encode() in response.data
     assert b">Pages</dt>" in response.data
     assert b">7</dd>" in response.data
     assert b">ISBN</dt>" in response.data
+    assert response.data.count(b">ISBN</dt>") == 1
+    assert b"9780201616224" not in response.data
     assert b">Language</dt>" not in response.data
     assert b">en</dd>" not in response.data
     assert book.metadata.language == "en"
@@ -315,7 +316,7 @@ def test_details_show_available_metadata_safely(app, client):
     assert b">Unknown</h1>" in response.data
     assert b">Pages</dt>" not in response.data
     assert b">Author</dt>" not in response.data
-    assert b'id="metadata-heading"' not in response.data
+    assert b'id="metadata-heading"' in response.data
 
 
 def test_bad_xmp_does_not_discard_pdf_info_and_page_count(tmp_path):
@@ -441,3 +442,31 @@ def test_only_first_isbn_is_persisted_and_displayed(app, client):
     page = client.get(f"/books/{store.books()[0].id}")
     assert b">9785932862056</dd>" in page.data
     assert b"9780321635365" not in page.data
+
+
+@pytest.mark.parametrize(
+    "pdf_isbn,epub_isbn,expected",
+    [
+        ("9780132350884", "9780201616224", "9780132350884"),
+        (None, "9780201616224", "9780201616224"),
+        ("9780132350884", None, "9780132350884"),
+        (None, None, None),
+    ],
+)
+def test_book_details_show_only_first_available_isbn(
+    app, client, pdf_isbn, epub_isbn, expected
+):
+    store = app.extensions["store"]
+    store.sync_files(
+        [
+            BookFile("/Book.pdf", "pdf", SHA256, metadata=Metadata(isbn=pdf_isbn)),
+            BookFile("/Book.epub", "epub", "b" * 64, metadata=Metadata(isbn=epub_isbn)),
+        ]
+    )
+    response = client.get(f"/books/{store.books()[0].id}")
+    assert response.status_code == 200
+    assert response.data.count(b">ISBN</dt>") == (1 if expected else 0)
+    if expected:
+        assert f">{expected}</dd>".encode() in response.data
+    assert b">PDF</button>" in response.data
+    assert b">EPUB</button>" in response.data

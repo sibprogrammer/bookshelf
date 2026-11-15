@@ -42,6 +42,12 @@ class Book:
     def file_title(self) -> str:
         return Path(self.files[0].file_path).stem
 
+    @property
+    def added_at(self) -> datetime | None:
+        return next(
+            (file.added_at for file in self.files if file.added_at is not None), None
+        )
+
 
 class Store:
     def __init__(self, path: Path):

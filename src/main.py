@@ -84,11 +84,10 @@ def create_app(config: Config | None = None) -> Flask:
         )
         return render_library(message=message, warning=warning)
 
-    def render_details(book: Book, *, message="", error=""):
+    def render_details(book: Book, *, error=""):
         return render_template(
             "details.html",
             book=book,
-            message=message,
             error=error,
             cover_available=indexer.covers.find(book.files) is not None,
         )
@@ -107,12 +106,7 @@ def create_app(config: Config | None = None) -> Flask:
 
     @app.get("/books/<int:book_id>")
     def details(book_id: int):
-        return render_details(
-            find_book(book_id),
-            message="Opening book in your default reader."
-            if request.args.get("opened") == "1"
-            else "",
-        )
+        return render_details(find_book(book_id))
 
     @app.get("/books/<int:book_id>/cover")
     def cover(book_id: int):
@@ -153,7 +147,7 @@ def create_app(config: Config | None = None) -> Flask:
                 "for this file type.",
                 500,
             )
-        return redirect(url_for("details", book_id=book.id, opened=1), code=303)
+        return redirect(url_for("details", book_id=book.id), code=303)
 
     @app.errorhandler(sqlite3.Error)
     def database_error(error):

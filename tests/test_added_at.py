@@ -94,10 +94,10 @@ def test_dates_are_stored_in_utc_and_support_ordering_and_ranges(store):
         assert [row["file_path"] for row in selected] == ["/later.pdf"]
 
 
-def test_details_show_creation_date_for_each_format(app, client):
+def test_details_show_first_available_creation_date(app, client):
     store = app.extensions["store"]
-    pdf_date = datetime(2020, 3, 4, 12, 30, 45, tzinfo=UTC)
-    epub_date = datetime(2024, 5, 6, 7, 8, 9, tzinfo=UTC)
+    pdf_date = datetime(2024, 5, 6, 7, 8, 9, tzinfo=UTC)
+    epub_date = datetime(2020, 3, 4, 12, 30, 45, tzinfo=UTC)
     store.sync_files(
         [
             BookFile("/Book.pdf", "pdf", SHA256, added_at=pdf_date),
@@ -108,14 +108,26 @@ def test_details_show_creation_date_for_each_format(app, client):
     book, unknown = store.books()
     page = client.get(f"/books/{book.id}")
     assert page.status_code == 200
-    assert page.data.count(b">Added</dt>") == 2
-    assert b"04 Mar 2020" in page.data
+    assert page.data.count(b">Added</dt>") == 1
+    assert b"04 Mar 2020" not in page.data
     assert b"06 May 2024" in page.data
     assert b"12:30:45" not in page.data
     assert b"07:08:09" not in page.data
-    for date in [pdf_date, epub_date]:
-        assert f'<time datetime="{date.date().isoformat()}">'.encode() in page.data
+    assert book.added_at == pdf_date
+    assert f'<time datetime="{pdf_date.date().isoformat()}">'.encode() in page.data
     page = client.get(f"/books/{unknown.id}")
     assert page.status_code == 200
     assert b"Unavailable" in page.data
     assert b"<time " not in page.data
+    store.sync_files(
+        [
+            BookFile("/Book.pdf", "pdf", SHA256),
+            BookFile("/Book.epub", "epub", SHA256, added_at=epub_date),
+        ]
+    )
+    book = store.books()[0]
+    assert book.added_at == epub_date
+    page = client.get(f"/books/{book.id}")
+    assert b"04 Mar 2020" in page.data
+    assert b"06 May 2024" not in page.data
+    assert page.data.count(b">Added</dt>") == 1

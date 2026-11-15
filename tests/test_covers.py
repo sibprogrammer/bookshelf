@@ -1,3 +1,4 @@
+import hashlib
 from io import BytesIO
 from threading import Event
 from zipfile import ZIP_STORED, ZipFile
@@ -23,9 +24,9 @@ def make_pdf(path, color=(1, 0, 0), *, blanks=0, size=(600, 1000)):
     return path
 
 
-def make_epub(path):
+def make_epub(path, *, page_body=None, image_size=(300, 500)):
     image = BytesIO()
-    Image.new("RGB", (300, 500), "red").save(image, "PNG")
+    Image.new("RGB", image_size, "red").save(image, "PNG")
     declared = BytesIO()
     Image.new("RGB", (300, 500), "blue").save(declared, "PNG")
     files = {
@@ -60,6 +61,10 @@ def make_epub(path):
         "OPS/red.png": image.getvalue(),
         "OPS/blue.png": declared.getvalue(),
     }
+    if page_body is not None:
+        files["OPS/page.xhtml"] = f"""<html xmlns="http://www.w3.org/1999/xhtml">
+          <head><title>First non-empty page</title></head>
+          <body>{page_body}</body></html>"""
     with ZipFile(path, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip", compress_type=ZIP_STORED)
         for name, content in files.items():
@@ -96,6 +101,51 @@ def test_epub_uses_first_non_empty_page_in_reading_order(tmp_path):
     image = render_cover(source)
     assert image.size == (333, 500)
     assert image.getpixel((166, 250)) == (255, 0, 0)
+
+
+@pytest.mark.parametrize("style", ["height:90vh", "width:60px;height:72px"])
+def test_epub_image_only_cover_uses_artwork_instead_of_css_size(tmp_path, style):
+    source = make_epub(
+        tmp_path / "book.epub",
+        page_body=f'<img src="red.png" style="{style}"/>',
+        image_size=(750, 900),
+    )
+    image = render_cover(source)
+    assert image.size == (333, 500)
+    assert image.getpixel((0, 250)) == (255, 0, 0)
+    assert image.getpixel((332, 250)) == (255, 0, 0)
+    assert image.getpixel((166, 51)) == (255, 0, 0)
+    assert image.getpixel((166, 448)) == (255, 0, 0)
+    assert image.getpixel((166, 0)) == (255, 255, 255)
+    assert image.getpixel((166, 499)) == (255, 255, 255)
+
+
+def test_epub_page_with_text_and_image_keeps_page_layout(tmp_path):
+    source = make_epub(
+        tmp_path / "book.epub",
+        page_body='<p>Book title</p><img src="red.png" width="60" height="100"/>',
+    )
+    image = render_cover(source)
+    assert image.getpixel((166, 250)) == (255, 255, 255)
+    assert image.convert("L").point(lambda value: 255 if value < 100 else 0).getbbox()
+    assert any(red > 200 and green < 50 for red, green, _ in image.get_flattened_data())
+
+
+def test_reindex_replaces_old_epub_cover_cache(library, store):
+    source = make_epub(library / "Book.epub")
+    indexer = Indexer(store, library)
+    old_key = hashlib.sha256(
+        f"v1:333x500:epub:{hash_file(source)}".encode()
+    ).hexdigest()
+    indexer.covers.directory.mkdir()
+    old_cover = indexer.covers.directory / f"{old_key}.png"
+    Image.new("RGB", (333, 500), "blue").save(old_cover)
+    indexer.reindex()
+    cover = indexer.covers.find(store.books()[0].files)
+    assert cover != old_cover
+    assert not old_cover.exists()
+    with Image.open(cover) as image:
+        assert image.getpixel((166, 250)) == (255, 0, 0)
 
 
 @pytest.mark.parametrize("kind", ["blank", "invalid", "encrypted"])

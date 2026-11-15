@@ -4,6 +4,7 @@ import hashlib
 import logging
 import os
 import re
+from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Event
@@ -25,6 +26,29 @@ def preferred_sources(files: list[BookFile] | tuple[BookFile, ...]) -> list[Book
     return sorted(files, key=lambda file: (file.extension != "pdf", file.file_path))
 
 
+def _page_image(page: pymupdf.Page, reflowable: bool) -> Image.Image:
+    if reflowable:
+        blocks = page.get_text("dict")["blocks"]
+        if len(blocks) == 1 and blocks[0]["type"] == 1:
+            # EPUB CSS can shrink a full-size cover to a tiny image on the page.
+            # Use its original pixels, preserving the first page in reading order.
+            try:
+                with Image.open(BytesIO(blocks[0]["image"])) as source:
+                    artwork = source.convert("RGBA")
+                image = Image.new("RGB", artwork.size, "white")
+                image.paste(artwork, mask=artwork.getchannel("A"))
+                return image
+            except OSError, ValueError:
+                pass  # Fall back to rendering if the embedded image cannot be read.
+    scale = min(2 * SIZE[0] / page.rect.width, 2 * SIZE[1] / page.rect.height)
+    pixmap = page.get_pixmap(
+        matrix=pymupdf.Matrix(scale, scale),
+        colorspace=pymupdf.csRGB,
+        alpha=False,
+    )
+    return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+
+
 def render_cover(path: Path, cancel: Event | None = None) -> Image.Image:
     """Render the first visibly non-white page, including image-only pages."""
     check_cancelled(cancel)
@@ -41,17 +65,7 @@ def render_cover(path: Path, cancel: Event | None = None) -> Image.Image:
                     page = document.load_page((chapter, number))
                     if page.rect.is_empty or page.rect.is_infinite:
                         continue
-                    scale = min(
-                        2 * SIZE[0] / page.rect.width, 2 * SIZE[1] / page.rect.height
-                    )
-                    pixmap = page.get_pixmap(
-                        matrix=pymupdf.Matrix(scale, scale),
-                        colorspace=pymupdf.csRGB,
-                        alpha=False,
-                    )
-                    image = Image.frombytes(
-                        "RGB", (pixmap.width, pixmap.height), pixmap.samples
-                    )
+                    image = _page_image(page, document.is_reflowable)
                     ink = image.convert("L").point(
                         lambda value: 255 if value < 250 else 0
                     )
@@ -84,8 +98,9 @@ class Covers:
         self.directory = Path(directory)
 
     def path(self, file: BookFile) -> Path:
+        version = "v2" if file.extension == "epub" else "v1"
         key = hashlib.sha256(
-            f"v1:{SIZE[0]}x{SIZE[1]}:{file.extension}:{file.sha256}".encode()
+            f"{version}:{SIZE[0]}x{SIZE[1]}:{file.extension}:{file.sha256}".encode()
         ).hexdigest()
         return self.directory / f"{key}.png"
 

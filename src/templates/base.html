@@ -34,12 +34,13 @@
       </ul>
       <form class="nav-search d-flex gap-2" action="{{ url_for('search') }}" method="get" role="search">
         <label class="visually-hidden" for="book-search">Search books</label>
-        <input class="form-control" id="book-search" name="q" type="search" placeholder="Search books…" value="{{ search_query|default('') }}">
+        <input class="form-control" id="book-search" name="q" type="search" placeholder="Search books…" value="{{ search_query|default('') }}" aria-controls="main-content" aria-describedby="search-status">
         <button class="btn btn-outline-primary" type="submit">Search</button>
       </form>
+      <span class="visually-hidden" id="search-status" role="status" aria-live="polite"></span>
     </nav>
   </header>
-  <main class="container py-4 py-md-5">
+  <main class="container py-4 py-md-5" id="main-content">
     {% block heading %}{% endblock %}
     {% if message %}<div class="alert alert-success" role="status">{{ message }}</div>{% endif %}
     {% if error %}<div class="alert alert-danger text-break" role="alert">{{ error }}</div>{% endif %}

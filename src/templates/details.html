@@ -1,27 +1,32 @@
 {% extends "base.html" %}
-{% block title %}{{ book.file_name }} · Bookshelf{% endblock %}
+{% block title %}{{ book.title }} · Bookshelf{% endblock %}
 {% block heading %}
   <nav class="mb-4" aria-label="Bookshelf"><a href="{{ url_for('home') }}">Back to books</a></nav>
-  <h1 class="h2 text-break mb-4">{{ book.file_name }}</h1>
+  <h1 class="h2 text-break mb-4">{{ book.title }}</h1>
 {% endblock %}
 {% block content %}
   <section class="card shadow-sm" aria-labelledby="details-heading">
-    <div class="card-header bg-body py-3 px-4"><h2 id="details-heading" class="h6 mb-0">Book details</h2></div>
-    <div class="card-body p-4">
-      <dl class="mb-0">
-        <dt class="text-body-secondary small mb-1">File name</dt>
-        <dd class="text-break mb-4">{{ book.file_name }}</dd>
-        <dt class="text-body-secondary small mb-1">Absolute path</dt>
-        <dd class="text-break mb-4">{{ book.file_path }}</dd>
-        <dt class="text-body-secondary small mb-1">SHA-256</dt>
-        <dd class="text-break mb-0"><code>{{ book.sha256 }}</code></dd>
-      </dl>
-    </div>
+    <div class="card-header bg-body py-3 px-4"><h2 id="details-heading" class="h6 mb-0">Available formats</h2></div>
+    <ul class="list-group list-group-flush">
+      {% for file in book.files %}
+      <li class="list-group-item p-4">
+        <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+          <h3 class="h6 mb-0">{{ file.extension|upper }}</h3>
+          <form action="{{ url_for('open_book', book_id=book.id, file_id=file.id) }}" method="post">
+            <button class="btn btn-primary btn-sm" type="submit">Open {{ file.extension|upper }} locally</button>
+          </form>
+        </div>
+        <dl class="mb-0">
+          <dt class="text-body-secondary small mb-1">Absolute path</dt>
+          <dd class="text-break mb-3">{{ file.file_path }}</dd>
+          <dt class="text-body-secondary small mb-1">SHA-256</dt>
+          <dd class="text-break mb-0"><code>{{ file.sha256 }}</code></dd>
+        </dl>
+      </li>
+      {% endfor %}
+    </ul>
     <div class="card-footer bg-body p-4">
-      <form action="{{ url_for('open_book', book_id=book.id) }}" method="post">
-        <button class="btn btn-primary" type="submit">Open file locally</button>
-      </form>
-      <p class="small text-body-secondary mt-2 mb-0">Opens in the default reader on the computer running Bookshelf.</p>
+      <p class="small text-body-secondary mb-0">Each format opens in the default reader on the computer running Bookshelf.</p>
     </div>
   </section>
 {% endblock %}

@@ -88,29 +88,32 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
             else "",
         )
 
-    @app.post("/books/<int:book_id>/open")
-    def open_book(book_id: int):
+    @app.post("/books/<int:book_id>/files/<int:file_id>/open")
+    def open_book(book_id: int, file_id: int):
         book = find_book(book_id)
+        file = next((file for file in book.files if file.id == file_id), None)
+        if file is None:
+            abort(404)
 
         def failed(message: str, status: int):
             return render_template("details.html", book=book, error=message), status
 
         try:
-            info = Path(book.file_path).stat()
+            info = Path(file.file_path).stat()
             if not stat.S_ISREG(info.st_mode):
-                raise FileNotFoundError(book.file_path)
+                raise FileNotFoundError(file.file_path)
         except FileNotFoundError:
             return failed(
                 "Book file not found. Reindex your books directory to update the list.",
                 404,
             )
         except OSError:
-            app.logger.exception("Unable to access book %s", book.file_path)
+            app.logger.exception("Unable to access book %s", file.file_path)
             return failed("Unable to access this book file.", 500)
         try:
-            app.extensions["open_book"](book.file_path)
+            app.extensions["open_book"](file.file_path)
         except OSError, subprocess.SubprocessError:
-            app.logger.exception("Unable to open book %s", book.file_path)
+            app.logger.exception("Unable to open book %s", file.file_path)
             return failed(
                 "Unable to open this book. Check that a default reader is installed "
                 "for this file type.",

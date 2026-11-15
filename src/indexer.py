@@ -6,7 +6,7 @@ import stat
 from pathlib import Path
 from threading import Event, Lock
 
-from .store import Book, Store, check_cancelled
+from .store import BookFile, Store, check_cancelled
 
 
 class IndexInProgress(Exception):
@@ -57,7 +57,7 @@ class Indexer:
             root = self.root.resolve(strict=True)
             if not root.is_dir():
                 raise OSError(f"books_dir must be a directory: {root}")
-            books = []
+            scanned_files = []
 
             def fail(error: OSError) -> None:
                 raise error
@@ -74,8 +74,13 @@ class Indexer:
                         continue
                     if not stat.S_ISREG(path.lstat().st_mode):
                         continue
-                    books.append(Book(name, str(path), hash_file(path, cancel)))
-            self.store.sync_books(books, cancel)
-            return len(books)
+                    scanned_files.append(
+                        BookFile(
+                            file_path=str(path),
+                            extension=path.suffix[1:].lower(),
+                            sha256=hash_file(path, cancel),
+                        )
+                    )
+            return self.store.sync_files(scanned_files, cancel)
         finally:
             self.lock.release()

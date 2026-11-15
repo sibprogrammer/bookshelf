@@ -7,7 +7,7 @@ import pytest
 
 from src import indexer as indexer_module
 from src.indexer import Indexer, IndexInProgress, hash_file
-from src.store import Book, ScanCancelled, Store
+from src.store import BookFile, ScanCancelled, Store
 
 ABC_HASH = hashlib.sha256(b"abc").hexdigest()
 
@@ -30,9 +30,10 @@ def test_recursive_scan_filters_hashes_and_preserves_ids(library, store, tmp_pat
     indexer = Indexer(store, root_link)
     assert indexer.reindex() == 3
     before = store.books()
-    assert [b.file_name for b in before] == ["a.EPUB", "z.pdf", "z.pdf"]
-    assert all(b.id > 0 and b.sha256 == ABC_HASH for b in before)
-    assert all(b.file_path.startswith(str(library.resolve())) for b in before)
+    assert [b.title for b in before] == ["a", "z", "z"]
+    assert all(b.id > 0 and b.files[0].sha256 == ABC_HASH for b in before)
+    assert all(b.directory.startswith(str(library.resolve())) for b in before)
+    assert before[0].files[0].extension == "epub"
     assert indexer.reindex() == 3
     assert store.books() == before
 
@@ -52,8 +53,8 @@ def test_updates_adds_removes_and_clears(library, store):
     assert indexer.reindex() == 2
     books = store.books()
     assert books[0].id == old_id
-    assert books[0].sha256 == hashlib.sha256(b"changed").hexdigest()
-    assert books[1].file_path == str(added.resolve())
+    assert books[0].files[0].sha256 == hashlib.sha256(b"changed").hexdigest()
+    assert books[1].files[0].file_path == str(added.resolve())
     keep.unlink()
     added.unlink()
     assert indexer.reindex() == 0
@@ -113,26 +114,26 @@ def test_rejects_overlap_and_releases_lock(library, store):
 def test_store_rollback_persistence_and_special_paths(tmp_path):
     path = tmp_path / "special ?# directory" / "index.db"
     store = Store(path)
-    original = Book("book.pdf", "/library/book.pdf", ABC_HASH)
-    store.sync_books([original])
+    original = BookFile("/library/book.pdf", "pdf", ABC_HASH)
+    store.sync_files([original])
     before = store.books()
     with pytest.raises(sqlite3.IntegrityError):
-        store.sync_books(
+        store.sync_files(
             [
-                Book(original.file_name, original.file_path, "0" * 64),
-                Book("invalid.pdf", "/library/invalid.pdf", "invalid hash"),
+                BookFile(original.file_path, "pdf", "0" * 64),
+                BookFile("/library/invalid.pdf", "pdf", "invalid hash"),
             ]
         )
     assert store.books() == before
-    store.sync_books([original])
+    store.sync_files([original])
     assert Store(path).books() == before
 
 
 def test_cancellation_during_transaction_rolls_back(library, store, monkeypatch):
     import src.store as store_module
 
-    original = Book("book.pdf", "/book.pdf", ABC_HASH)
-    store.sync_books([original])
+    original = BookFile("/book.pdf", "pdf", ABC_HASH)
+    store.sync_files([original])
     before = store.books()
     calls = 0
 
@@ -144,7 +145,7 @@ def test_cancellation_during_transaction_rolls_back(library, store, monkeypatch)
 
     monkeypatch.setattr(store_module, "check_cancelled", cancel_during_save)
     with pytest.raises(ScanCancelled):
-        store.sync_books([Book("new.pdf", "/new.pdf", ABC_HASH)])
+        store.sync_files([BookFile("/new.pdf", "pdf", ABC_HASH)])
     assert store.books() == before
 
 
@@ -173,27 +174,58 @@ def test_hash_streams_large_file(library):
     assert hash_file(path) == hashlib.sha256(contents).hexdigest()
 
 
-def test_original_database_schema_is_compatible(tmp_path):
-    path = tmp_path / "old.db"
-    with sqlite3.connect(path) as connection:
-        connection.executescript("""
-            CREATE TABLE books (
-                id INTEGER PRIMARY KEY,
-                file_name TEXT NOT NULL,
-                file_path TEXT NOT NULL UNIQUE,
-                sha256 TEXT NOT NULL CHECK(length(sha256) = 64)
-            );
-        """)
-        connection.execute(
-            "INSERT INTO books VALUES (42, ?, ?, ?)",
-            (
-                "book.pdf",
-                "/book.pdf",
-                ABC_HASH,
-            ),
-        )
-    store = Store(path)
+def test_formats_share_one_book_and_keep_individual_hashes(library, store):
+    pdf = library / "A book.with.dots.PDF"
+    epub = library / "A book.with.dots.ePuB"
+    pdf.write_text("PDF contents")
+    epub.write_text("EPUB contents")
+    indexer = Indexer(store, library)
+    assert indexer.reindex() == 1
+    books = store.books()
+    assert len(books) == 1
+    book = books[0]
+    assert book.title == "A book.with.dots"
+    assert [file.extension for file in book.files] == ["pdf", "epub"]
+    assert [file.sha256 for file in book.files] == [
+        hashlib.sha256(b"PDF contents").hexdigest(),
+        hashlib.sha256(b"EPUB contents").hexdigest(),
+    ]
+    assert store.book(book.id) == book
+    assert indexer.reindex() == 1
+    assert store.books() == books
+
+
+def test_adding_and_removing_formats_preserves_book_and_remaining_file(library, store):
+    pdf = library / "Book.pdf"
+    epub = library / "Book.epub"
+    pdf.write_text("PDF")
+    indexer = Indexer(store, library)
+    indexer.reindex()
     original = store.books()[0]
-    assert original.id == 42
-    store.sync_books([Book("book.pdf", "/book.pdf", "1" * 64)])
-    assert store.books()[0].id == 42
+    epub.write_text("EPUB")
+    assert indexer.reindex() == 1
+    both = store.books()[0]
+    assert both.id == original.id
+    assert both.files[0] == original.files[0]
+    pdf.unlink()
+    assert indexer.reindex() == 1
+    remaining = store.books()[0]
+    assert remaining.id == original.id
+    assert remaining.files == (both.files[1],)
+    epub.unlink()
+    assert indexer.reindex() == 0
+    assert store.book(original.id) is None
+    with store.connect() as connection:
+        assert connection.execute("SELECT count(*) FROM book_files").fetchone()[0] == 0
+
+
+def test_identical_titles_in_different_directories_are_distinct(library, store):
+    (library / "one").mkdir()
+    (library / "two").mkdir()
+    for name in ["one/Book.pdf", "one/Book.epub", "two/Book.epub"]:
+        (library / name).write_text("abc")
+    assert Indexer(store, library).reindex() == 2
+    books = store.books()
+    assert [book.title for book in books] == ["Book", "Book"]
+    assert [len(book.files) for book in books] == [2, 1]
+    assert books[0].directory != books[1].directory

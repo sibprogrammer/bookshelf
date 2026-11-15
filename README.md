@@ -42,19 +42,16 @@ See [`config.json.sample`](config.json.sample):
 
 Relative paths resolve against the config file's directory. Unknown keys, invalid types, and empty values are rejected. `config.json`, local books, and database files are gitignored.
 
-## Existing installations
-
-The Python rewrite reads the original SQLite schema directly; saved book IDs, paths, and hashes are preserved. Configuration contains only `books_dir` and `database_path`; server options belong to Flask. Stop the old server before starting Python on the same port. No automatic scan runs at startup.
-
 ## Index behavior
 
 - Only regular files with `.pdf` or `.epub` extensions are indexed, case-insensitively. File contents are not parsed or validated as book formats.
 - Nested directories are scanned. Symlinks inside the tree are skipped. A symlink used as `books_dir` itself is resolved before each scan.
-- Each row stores `id`, `file_name`, `file_path` (absolute), and `sha256` (lowercase hex). Duplicate contents at different paths remain separate entries.
-- Every scan recomputes SHA-256 by streaming file contents. Existing paths are updated without changing their IDs; new files are added and missing files are removed. A successful scan of an empty directory clears the index.
+- A book has a title (the filename without its final extension), a directory, and one or more files. Files with the same title in the same directory are grouped together: `Book.pdf` and `Book.epub` appear as one book with two formats. Titles match exactly, including case; extensions are case-insensitive. Identical titles in different directories remain separate books.
+- Each file stores its format (`pdf` or `epub`), absolute path, and SHA-256 (lowercase hex). Books and files have separate IDs. Duplicate contents do not cause unrelated titles or directories to be merged.
+- Every scan recomputes SHA-256 by streaming file contents. Existing book and file IDs are preserved; adding or removing a format keeps the book's ID while at least one format remains. Books without files are removed. A successful scan of an empty directory clears the index. Counts refer to books, rather than individual files.
 - Scan errors, missing directories, cancellation, or database errors leave the previous index intact. Changes are committed in one transaction after the entire scan succeeds. Overlapping scans in the app process are rejected while one is running.
-- The table lists file names alphabetically; hover over a name to see its full path. Click a file name for its details page, including the absolute path, SHA-256, and **Open file locally** action.
-- The open action and each table row's icon open the book in the default reader on the computer running Bookshelf, then return you to its details page. macOS uses `open`, Windows uses `os.startfile`, and Linux requires `xdg-open` and a desktop session. No author or cover metadata is collected yet.
+- The table lists titles alphabetically without extensions; hover over a title to see its directory. Each row has an open button for every available format. Click a title for a details page with a separate path, SHA-256, and **Open PDF locally** or **Open EPUB locally** action for each file.
+- Format buttons open the selected file in the default reader on the computer running Bookshelf, then return you to the book's details page. macOS uses `open`, Windows uses `os.startfile`, and Linux requires `xdg-open` and a desktop session. No author or cover metadata is collected yet.
 - Index and open actions accept POST requests only. Cross-origin browser requests are rejected before performing either action. Filenames and paths are escaped in templates.
 
 ## Development

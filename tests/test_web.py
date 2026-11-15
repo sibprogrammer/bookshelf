@@ -20,11 +20,11 @@ def test_index_and_details_flow(app, client, library):
     response = client.get(response.location)
     assert response.headers["Cache-Control"] == "no-store"
     assert b"Index complete" in response.data
-    assert b">&lt;b&gt;&amp;book</a>" in response.data
+    assert b">&lt;b&gt;&amp;book</h3>" in response.data
     assert b"<b>&book" not in response.data
     book = app.extensions["store"].books()[0]
     assert f'href="/books/{book.id}"'.encode() in response.data
-    assert b'aria-label="Open &lt;b&gt;&amp;book as PDF locally"' in response.data
+    assert b'class="home-book-card card ' in response.data
     response = client.get(f"/books/{book.id}")
     assert response.status_code == 200
     assert response.content_type == "text/html; charset=utf-8"
@@ -160,12 +160,12 @@ def test_dual_format_book_renders_once_and_each_format_opens_its_own_file(
     book = app.extensions["store"].books()[0]
     response = client.get("/library")
     assert response.data.count(f'href="/books/{book.id}"'.encode()) == 1
-    assert b">A Book</a>" in response.data
+    assert b">A Book</h3>" in response.data
     assert b"A Book.pdf" not in response.data
     assert b"A Book.EPUB" not in response.data
     assert b"1 book(s)" in response.data
-    assert b">PDF</button>" in response.data
-    assert b">EPUB</button>" in response.data
+    assert response.data.count(b'class="home-book-card card ') == 1
+    assert b"/open" not in response.data
     details = client.get(f"/books/{book.id}")
     assert b">A Book</h1>" in details.data
     assert b">PDF</button>" in details.data
@@ -175,7 +175,6 @@ def test_dual_format_book_renders_once_and_each_format_opens_its_own_file(
     app.extensions["open_book"] = calls.append
     for file in book.files:
         url = f"/books/{book.id}/files/{file.id}/open"
-        assert f'action="{url}"'.encode() in response.data
         assert f'action="{url}"'.encode() in details.data
         assert client.get(url).status_code == 405
         opened = client.post(url + "?path=/unindexed.pdf&extension=wrong")
@@ -259,9 +258,11 @@ def test_home_lists_twenty_recent_books_as_cards_and_library_keeps_every_book(
     assert b'href="/library" aria-current="page">Library</a>' in response.data
     assert b'action="/index"' in response.data
     assert b"23 book(s)" in response.data
-    for file in books["Book00"].files:
-        url = f"/books/{books['Book00'].id}/files/{file.id}/open"
-        assert f'action="{url}"'.encode() in response.data
+    assert response.data.count(b'class="home-book-card card ') == 23
+    assert b"<table" not in response.data
+    assert b"/open" not in response.data
+    assert f'src="/books/{books["Book00"].id}/cover"'.encode() in response.data
+    assert response.data.count(b"Cover unavailable") == 22
     assert [
         int(book_id) for book_id in findall(rb'href="/books/(\d+)"', response.data)
     ] == [book.id for book in store.books()]

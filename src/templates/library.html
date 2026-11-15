@@ -15,11 +15,24 @@
   </div>
 {% endblock %}
 {% block content %}
-  <section class="card shadow-sm" aria-labelledby="library-heading">
-    <div class="card-header bg-body d-flex align-items-center justify-content-between py-3">
+  <section aria-labelledby="library-heading">
+    <div class="d-flex align-items-center justify-content-between mb-4">
       <h2 class="h6 mb-0" id="library-heading">All books</h2>
       <span class="badge text-bg-secondary">{{ books|length }} book(s)</span>
     </div>
-    {% include "_book_table.html" %}
+    {% if books %}
+    <ul class="library-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for book in books %}
+      <li class="col">
+        {% include "_book_card.html" %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="card shadow-sm text-center p-5">
+      <p class="fw-semibold mb-1">No books indexed yet.</p>
+      <p class="text-body-secondary mb-0">Use the button above to scan your books directory.</p>
+    </div>
+    {% endif %}
   </section>
 {% endblock %}

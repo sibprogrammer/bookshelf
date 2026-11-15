@@ -41,9 +41,13 @@ def create_app(config: Config | None = None) -> Flask:
         return response
 
     def render_library(status=200, message="", error="", warning=""):
+        books = store.books()
         return render_template(
             "library.html",
-            books=store.books(),
+            books=books,
+            cover_book_ids={
+                book.id for book in books if indexer.covers.find(book.files) is not None
+            },
             message=message,
             error=error,
             warning=warning,

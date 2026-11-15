@@ -221,7 +221,7 @@ def test_home_lists_ten_recent_books_and_library_keeps_every_book(app, client):
     assert store.recent_books() == expected
     response = client.get("/")
     assert response.status_code == 200
-    assert b">Recently added</h1>" in response.data
+    assert b">Recently Added</h1>" in response.data
     assert b'href="/" aria-current="page">Home</a>' in response.data
     assert "Home · Bookshelf".encode() in response.data
     assert [
@@ -242,7 +242,7 @@ def test_home_lists_ten_recent_books_and_library_keeps_every_book(app, client):
     ] == [book.id for book in store.books()]
     response = client.get(f"/books/{books['Book00'].id}")
     assert b'href="/library" aria-current="page">Library</a>' in response.data
-    assert b'href="/library">Back to library</a>' in response.data
+    assert b">Book00</h1>" in response.data
 
 
 def test_recent_books_sort_unknown_dates_last_and_break_ties_alphabetically(store):
@@ -266,7 +266,7 @@ def test_recent_books_sort_unknown_dates_last_and_break_ties_alphabetically(stor
 def test_empty_home_links_to_library_for_indexing(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert b">Recently added</h1>" in response.data
+    assert b">Recently Added</h1>" in response.data
     assert b"No books indexed yet" in response.data
     assert b'href="/library">Library</a> to index your books' in response.data
     assert b'action="/index"' not in response.data

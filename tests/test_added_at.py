@@ -108,7 +108,7 @@ def test_details_show_creation_date_for_each_format(app, client):
     book, unknown = store.books()
     page = client.get(f"/books/{book.id}")
     assert page.status_code == 200
-    assert page.data.count(b"Added on disk") == 2
+    assert page.data.count(b">Added</dt>") == 2
     assert b"04 Mar 2020" in page.data
     assert b"06 May 2024" in page.data
     assert b"12:30:45" not in page.data

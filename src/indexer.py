@@ -3,6 +3,7 @@
 import hashlib
 import os
 import stat
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event, Lock
 
@@ -11,6 +12,13 @@ from .store import BookFile, Store, check_cancelled
 
 class IndexInProgress(Exception):
     pass
+
+
+def file_added_at(info: os.stat_result) -> datetime | None:
+    birthtime = getattr(info, "st_birthtime", None)
+    if birthtime is None:
+        return None
+    return datetime.fromtimestamp(birthtime, UTC)
 
 
 def hash_file(path: Path, cancel: Event | None = None) -> str:
@@ -72,13 +80,15 @@ class Indexer:
                     path = Path(directory) / name
                     if path.suffix.lower() not in {".pdf", ".epub"}:
                         continue
-                    if not stat.S_ISREG(path.lstat().st_mode):
+                    info = path.lstat()
+                    if not stat.S_ISREG(info.st_mode):
                         continue
                     scanned_files.append(
                         BookFile(
                             file_path=str(path),
                             extension=path.suffix[1:].lower(),
                             sha256=hash_file(path, cancel),
+                            added_at=file_added_at(info),
                         )
                     )
             return self.store.sync_files(scanned_files, cancel)

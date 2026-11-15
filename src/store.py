@@ -3,6 +3,7 @@
 import sqlite3
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event
 
@@ -22,6 +23,7 @@ class BookFile:
     extension: str
     sha256: str
     id: int = 0
+    added_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -50,10 +52,14 @@ class Store:
                 book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                 extension TEXT NOT NULL CHECK(extension IN ('pdf', 'epub')),
                 file_path TEXT NOT NULL UNIQUE,
-                sha256 TEXT NOT NULL CHECK(length(sha256) = 64)
+                sha256 TEXT NOT NULL CHECK(length(sha256) = 64),
+                added_at TEXT
             )""")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS book_files_book_id ON book_files(book_id)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS book_files_added_at ON book_files(added_at)"
             )
 
     @contextmanager
@@ -69,7 +75,7 @@ class Store:
     def _read_books(connection: sqlite3.Connection, book_id: int | None = None):
         query = (
             "SELECT b.id AS book_id, b.title, b.directory, f.id AS file_id, "
-            "f.file_path, f.extension, f.sha256 "
+            "f.file_path, f.extension, f.sha256, f.added_at "
             "FROM books b JOIN book_files f ON f.book_id = b.id "
         )
         parameters = ()
@@ -91,6 +97,9 @@ class Store:
                     extension=row["extension"],
                     sha256=row["sha256"],
                     id=row["file_id"],
+                    added_at=datetime.fromisoformat(row["added_at"])
+                    if row["added_at"] is not None
+                    else None,
                 )
             )
         return [
@@ -127,11 +136,20 @@ class Store:
                     (str(path.parent), path.stem),
                 ).fetchone()["id"]
                 connection.execute(
-                    "INSERT INTO book_files (book_id, extension, file_path, sha256) "
-                    "VALUES (?, ?, ?, ?) ON CONFLICT(file_path) DO UPDATE SET "
+                    "INSERT INTO book_files "
+                    "(book_id, extension, file_path, sha256, added_at) "
+                    "VALUES (?, ?, ?, ?, ?) ON CONFLICT(file_path) DO UPDATE SET "
                     "book_id = excluded.book_id, extension = excluded.extension, "
-                    "sha256 = excluded.sha256",
-                    (book_id, file.extension, file.file_path, file.sha256),
+                    "sha256 = excluded.sha256, added_at = excluded.added_at",
+                    (
+                        book_id,
+                        file.extension,
+                        file.file_path,
+                        file.sha256,
+                        file.added_at.astimezone(UTC).isoformat(timespec="microseconds")
+                        if file.added_at is not None
+                        else None,
+                    ),
                 )
                 connection.execute(
                     "INSERT INTO scanned_paths (file_path) VALUES (?)",

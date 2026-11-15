@@ -2,21 +2,28 @@ import json
 
 import pytest
 
+from src import config as config_module
 from src.config import load_config
+from src.main import create_app
 
 
-def test_config_defaults_and_relative_paths(tmp_path, monkeypatch):
+@pytest.fixture
+def config_file(tmp_path, monkeypatch):
     path = tmp_path / "config.json"
-    path.write_text('{"books_dir": "./library"}')
+    monkeypatch.setattr(config_module, "CONFIG_PATH", path)
+    return path
+
+
+def test_config_defaults_and_relative_paths(config_file, tmp_path, monkeypatch):
+    config_file.write_text('{"books_dir": "./library"}')
     monkeypatch.chdir(tmp_path.parent)
-    config = load_config(path)
+    config = load_config()
     assert config.books_dir == tmp_path / "library"
     assert config.database_path == tmp_path / "data" / "bookshelf.db"
 
 
-def test_explicit_config(tmp_path):
-    path = tmp_path / "config.json"
-    path.write_text(
+def test_explicit_config(config_file, tmp_path):
+    config_file.write_text(
         json.dumps(
             {
                 "books_dir": str(tmp_path / "absolute-books"),
@@ -24,7 +31,7 @@ def test_explicit_config(tmp_path):
             }
         )
     )
-    config = load_config(path)
+    config = load_config()
     assert config.books_dir == tmp_path / "absolute-books"
     assert config.database_path == tmp_path / "index.db"
 
@@ -45,13 +52,24 @@ def test_explicit_config(tmp_path):
         '{"books_dir":"books","database_path":null}',
     ],
 )
-def test_invalid_config(tmp_path, contents):
-    path = tmp_path / "config.json"
-    path.write_text(contents)
+def test_invalid_config(config_file, contents):
+    config_file.write_text(contents)
     with pytest.raises(ValueError):
-        load_config(path)
+        load_config()
 
 
-def test_missing_config(tmp_path):
+def test_missing_config(config_file):
     with pytest.raises(ValueError, match="Copy config.json.sample"):
-        load_config(tmp_path / "missing.json")
+        load_config()
+
+
+def test_app_ignores_config_path_environment_variable(
+    config_file, tmp_path, monkeypatch
+):
+    config_file.write_text('{"books_dir": "./library"}')
+    alternate = tmp_path / "alternate.json"
+    alternate.write_text('{"books_dir": "./other", "database_path": "other.db"}')
+    monkeypatch.setenv("BOOKSHELF_CONFIG", str(alternate))
+    app = create_app()
+    assert app.extensions["store"].path == tmp_path / "data" / "bookshelf.db"
+    assert app.extensions["indexer"].root == tmp_path / "library"

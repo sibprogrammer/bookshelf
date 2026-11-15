@@ -21,12 +21,6 @@ Open <http://127.0.0.1:5000>. **Home** shows up to 20 recently added books as co
 
 uv provisions Python 3.14 using `.python-version`; Python 3.14 or newer is required. No Go toolchain, C compiler, Node, or frontend build is needed. Bootstrap's compiled CSS and JavaScript are bundled locally, so the UI works offline after dependencies are installed.
 
-Use another config file with:
-
-```sh
-BOOKSHELF_CONFIG=/path/to/config.json uv run flask --app src.main run
-```
-
 Set the server address with Flask's `--host` and `--port` options.
 
 The bundled server is intended for a local, single-process app. Keep the default loopback address: Bookshelf has no login and opens files on the server computer.
@@ -40,7 +34,7 @@ See [`config.json.sample`](config.json.sample):
 | `books_dir` | Directory to scan recursively | Required |
 | `database_path` | SQLite database file; its parent directory is created automatically | `./data/bookshelf.db` |
 
-Relative paths resolve against the config file's directory. Unknown keys, invalid types, and empty values are rejected. `config.json`, local books, and database files are gitignored.
+The app always reads `config.json` from the project root. Relative paths resolve against that directory. Unknown keys, invalid types, and empty values are rejected. `config.json`, local books, and database files are gitignored.
 
 ## Index behavior
 

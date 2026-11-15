@@ -5,6 +5,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
+
 
 @dataclass(frozen=True)
 class Config:
@@ -12,8 +14,8 @@ class Config:
     database_path: Path
 
 
-def load_config(path: str | Path = "config.json") -> Config:
-    path = Path(os.path.abspath(path))
+def load_config() -> Config:
+    path = CONFIG_PATH
     try:
         values = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as error:

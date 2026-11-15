@@ -1,6 +1,5 @@
 """Flask application factory and routes for Bookshelf."""
 
-import os
 import sqlite3
 import stat
 import subprocess
@@ -14,11 +13,9 @@ from .opener import open_local_book
 from .store import Book, ScanCancelled, Store
 
 
-def create_app(config: Config | str | Path | None = None) -> Flask:
-    if not isinstance(config, Config):
-        config = load_config(
-            config or os.environ.get("BOOKSHELF_CONFIG", "config.json")
-        )
+def create_app(config: Config | None = None) -> Flask:
+    if config is None:
+        config = load_config()
     app = Flask(__name__)
     app.config["BOOKSHELF_CONFIG"] = config
     store = Store(config.database_path)

@@ -123,7 +123,9 @@ def _first_page_image(path: Path, cancel: Event | None) -> Image.Image:
     raise CoverError("Book has no non-empty pages")
 
 
-def render_cover(path: Path, cancel: Event | None = None) -> Image.Image:
+def render_cover(
+    path: Path, cancel: Event | None = None, *, size: tuple[int, int] = SIZE
+) -> Image.Image:
     """Use the declared EPUB artwork, falling back to the first non-empty page."""
     check_cancelled(cancel)
     before = path.stat()
@@ -131,11 +133,11 @@ def render_cover(path: Path, cancel: Event | None = None) -> Image.Image:
         image = _epub_cover(path, cancel) if path.suffix.lower() == ".epub" else None
         if image is None:
             image = _first_page_image(path, cancel)
-        fitted = ImageOps.contain(image, SIZE, Image.Resampling.LANCZOS)
-        cover = Image.new("RGB", SIZE, "white")
+        fitted = ImageOps.contain(image, size, Image.Resampling.LANCZOS)
+        cover = Image.new("RGB", size, "white")
         cover.paste(
             fitted,
-            ((SIZE[0] - fitted.width) // 2, (SIZE[1] - fitted.height) // 2),
+            ((size[0] - fitted.width) // 2, (size[1] - fitted.height) // 2),
         )
         check_cancelled(cancel)
         after = path.stat()

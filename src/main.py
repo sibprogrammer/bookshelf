@@ -11,6 +11,7 @@ import pymupdf
 from flask import Flask, abort, redirect, render_template, request, send_file, url_for
 
 from .config import Config, load_config
+from .covers import CoverError, preferred_sources, render_cover
 from .indexer import Indexer, IndexInProgress
 from .opener import open_local_book
 from .store import Book, ScanCancelled, Store
@@ -165,12 +166,14 @@ def create_app(config: Config | None = None) -> Flask:
 
     def render_details(book: Book, *, error=""):
         similar_books = store.similar_books(book)
+        preview_file = next(iter(preferred_sources(book.files)), None)
         return render_template(
             "details.html",
             book=book,
             error=error,
             cover_available=indexer.covers.find(book.files) is not None,
-            pdf_available=any(file.extension == "pdf" for file in book.files),
+            preview_format=preview_file.extension.upper() if preview_file else None,
+            preview_start=0 if preview_file and preview_file.extension == "epub" else 1,
             similar_books=similar_books,
             cover_book_ids={
                 suggestion.book.id
@@ -226,29 +229,42 @@ def create_app(config: Config | None = None) -> Flask:
     @app.get("/books/<int:book_id>/preview/<int:page_number>")
     def preview_page(book_id: int, page_number: int):
         book = find_book(book_id)
-        file = next((file for file in book.files if file.extension == "pdf"), None)
+        file = next(iter(preferred_sources(book.files)), None)
         if file is None or not Path(file.file_path).is_file():
             abort(404)
         try:
             with pymupdf.open(file.file_path) as document:
-                if not document.is_pdf or document.needs_pass:
+                if document.needs_pass or (
+                    file.extension == "pdf" and not document.is_pdf
+                ):
                     abort(422)
+                if document.is_reflowable:
+                    # Keep EPUB pagination identical in the inline and larger views.
+                    document.layout(width=499.5, height=750, fontsize=11)
                 page_count = document.page_count
-                if not 1 <= page_number <= page_count:
+                first_page = 0 if file.extension == "epub" else 1
+                if not first_page <= page_number <= page_count:
                     abort(404)
-                page = document.load_page(page_number - 1)
-                if page.rect.is_empty or page.rect.is_infinite:
-                    abort(422)
                 width, height = (
                     (1332, 2000) if request.args.get("size") == "large" else (666, 1000)
                 )
-                scale = min(width / page.rect.width, height / page.rect.height)
-                image = page.get_pixmap(
-                    matrix=pymupdf.Matrix(scale, scale),
-                    colorspace=pymupdf.csRGB,
-                    alpha=False,
-                ).tobytes("png")
-        except OSError, RuntimeError, ValueError:
+                if page_number == 0:
+                    output = BytesIO()
+                    render_cover(Path(file.file_path), size=(width, height)).save(
+                        output, format="PNG"
+                    )
+                    image = output.getvalue()
+                else:
+                    page = document.load_page(page_number - 1)
+                    if page.rect.is_empty or page.rect.is_infinite:
+                        abort(422)
+                    scale = min(width / page.rect.width, height / page.rect.height)
+                    image = page.get_pixmap(
+                        matrix=pymupdf.Matrix(scale, scale),
+                        colorspace=pymupdf.csRGB,
+                        alpha=False,
+                    ).tobytes("png")
+        except OSError, RuntimeError, ValueError, CoverError:
             app.logger.exception("Unable to preview book %s", file.file_path)
             abort(422)
         response = send_file(BytesIO(image), mimetype="image/png")

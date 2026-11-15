@@ -65,28 +65,28 @@ def test_pdf_details_offer_preview_even_without_cached_cover(client, preview_boo
     response = client.get(f"/books/{preview_book.id}")
     assert response.status_code == 200
     assert (
-        f'data-pdf-preview="/books/{preview_book.id}/preview/1"'.encode()
+        f'data-book-preview="/books/{preview_book.id}/preview/1"'.encode()
         in response.data
     )
     assert b'aria-label="Previous PDF page"' in response.data
     assert b'aria-label="Next PDF page"' in response.data
     assert b"data-preview-status" in response.data
     assert b'aria-label="Open larger PDF preview"' in response.data
-    assert b'aria-controls="pdf-preview-modal"' in response.data
-    assert b'id="pdf-preview-modal"' in response.data
+    assert b'aria-controls="book-preview-modal"' in response.data
+    assert b'id="book-preview-modal"' in response.data
     assert b'data-bs-dismiss="modal" aria-label="Close preview"' in response.data
 
 
-def test_epub_only_book_keeps_cover_without_preview_controls(app, client, library):
+def test_missing_epub_keeps_details_available(app, client, library):
     path = library / "EPUB only.epub"
     app.extensions["store"].sync_files([BookFile(str(path), "epub", "b" * 64)])
     book = app.extensions["store"].books()[0]
     response = client.get(f"/books/{book.id}")
     assert response.status_code == 200
-    assert b"data-pdf-preview" not in response.data
-    assert b"data-preview-previous" not in response.data
-    assert b"data-preview-next" not in response.data
-    assert b'id="pdf-preview-modal"' not in response.data
+    assert b"data-book-preview" in response.data
+    assert b'aria-label="Previous EPUB page"' in response.data
+    assert b'aria-label="Next EPUB page"' in response.data
+    assert b'id="book-preview-modal"' in response.data
     assert client.get(f"/books/{book.id}/preview/1").status_code == 404
 
 

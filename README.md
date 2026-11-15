@@ -21,6 +21,8 @@ Open <http://127.0.0.1:5000>, go to **Library**, and click **Index / reindex boo
 
 Bookshelf is intended for local use. It has no login and opens books in the default reader on the computer running the app.
 
+Use the heart button in a book's details footer to add or remove a favorite. The **Favorites** menu shows your saved books, and favorite books display a heart on their covers throughout the library. Favorites are stored in the database and preserved when reindexing; existing databases are upgraded automatically.
+
 ## Index behavior
 
 - Scans the configured directory and its subdirectories for PDF and EPUB books.

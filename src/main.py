@@ -114,6 +114,17 @@ def create_app(config: Config | None = None) -> Flask:
             },
         )
 
+    @app.get("/favorites")
+    def favorites():
+        books = store.favorite_books()
+        return render_template(
+            "favorites.html",
+            books=books,
+            cover_book_ids={
+                book.id for book in books if indexer.covers.find(book.files) is not None
+            },
+        )
+
     @app.get("/categories")
     def categories():
         return render_template(
@@ -162,6 +173,16 @@ def create_app(config: Config | None = None) -> Flask:
     @app.get("/books/<int:book_id>")
     def details(book_id: int):
         return render_details(find_book(book_id))
+
+    @app.post("/books/<int:book_id>/favorite")
+    def set_favorite(book_id: int):
+        book = find_book(book_id)
+        favorite = request.form.get("favorite")
+        if favorite not in {"0", "1"}:
+            abort(400)
+        if not store.set_favorite(book.id, favorite == "1"):
+            abort(404)
+        return redirect(url_for("details", book_id=book.id), code=303)
 
     @app.get("/books/<int:book_id>/cover")
     def cover(book_id: int):

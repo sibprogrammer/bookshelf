@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Favorites · Bookshelf{% endblock %}
+{% block heading %}
+  <h1 class="h2 mb-1">Favorites</h1>
+  <p class="text-body-secondary mb-4">Your favorite books.</p>
+{% endblock %}
+{% block content %}
+  <section aria-labelledby="favorite-books-heading">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <h2 class="h6 mb-0" id="favorite-books-heading">Books</h2>
+      <span class="badge text-bg-secondary">{{ books|length }} book(s)</span>
+    </div>
+    {% if books %}
+    <ul class="favorite-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for book in books %}
+      <li class="col">
+        {% include "_book_card.html" %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-body-secondary">No favorite books yet. Open a book in the <a href="{{ url_for('library') }}">Library</a> and use the heart button to add it to your favorites.</p>
+    {% endif %}
+  </section>
+{% endblock %}

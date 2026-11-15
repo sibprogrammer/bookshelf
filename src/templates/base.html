@@ -31,6 +31,9 @@
           {% set in_library = request.endpoint in ('library', 'reindex', 'details', 'open_book') %}
           <a class="nav-link{% if in_library %} active{% endif %}" href="{{ url_for('library') }}"{% if in_library %} aria-current="page"{% endif %}>Library</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link{% if request.endpoint == 'favorites' %} active{% endif %}" href="{{ url_for('favorites') }}"{% if request.endpoint == 'favorites' %} aria-current="page"{% endif %}>Favorites</a>
+        </li>
       </ul>
       <form class="nav-search d-flex gap-2" action="{{ url_for('search') }}" method="get" role="search">
         <label class="visually-hidden" for="book-search">Search books</label>

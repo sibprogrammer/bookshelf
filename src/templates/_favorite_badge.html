@@ -1,0 +1,4 @@
+{% if book.favorite %}
+{% from "_icons.html" import heart %}
+<span class="book-favorite-badge" role="img" aria-label="Favorite" title="Favorite">{{ heart(filled=true) }}</span>
+{% endif %}

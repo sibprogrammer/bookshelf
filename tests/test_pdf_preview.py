@@ -38,6 +38,19 @@ def test_preview_renders_each_pdf_page_in_order(client, preview_book):
             assert (image.width > image.height) == (number == 2)
 
 
+@pytest.mark.parametrize(
+    "size, width, height", [("large", 1332, 2000), ("999999999", 666, 1000)]
+)
+def test_preview_resolution_is_bounded(client, preview_book, size, width, height):
+    response = client.get(f"/books/{preview_book.id}/preview/2?size={size}")
+    assert response.status_code == 200
+    assert response.headers["X-Page-Count"] == "3"
+    with Image.open(BytesIO(response.data)) as image:
+        assert image.width == width
+        assert image.height <= height
+        assert image.getpixel((image.width // 2, image.height // 2)) == (255, 0, 0)
+
+
 @pytest.mark.parametrize("number", ["0", "-1", "4", "9" * 30, "invalid"])
 def test_preview_rejects_out_of_range_pages(client, preview_book, number):
     assert client.get(f"/books/{preview_book.id}/preview/{number}").status_code == 404
@@ -58,6 +71,10 @@ def test_pdf_details_offer_preview_even_without_cached_cover(client, preview_boo
     assert b'aria-label="Previous PDF page"' in response.data
     assert b'aria-label="Next PDF page"' in response.data
     assert b"data-preview-status" in response.data
+    assert b'aria-label="Open larger PDF preview"' in response.data
+    assert b'aria-controls="pdf-preview-modal"' in response.data
+    assert b'id="pdf-preview-modal"' in response.data
+    assert b'data-bs-dismiss="modal" aria-label="Close preview"' in response.data
 
 
 def test_epub_only_book_keeps_cover_without_preview_controls(app, client, library):
@@ -69,6 +86,7 @@ def test_epub_only_book_keeps_cover_without_preview_controls(app, client, librar
     assert b"data-pdf-preview" not in response.data
     assert b"data-preview-previous" not in response.data
     assert b"data-preview-next" not in response.data
+    assert b'id="pdf-preview-modal"' not in response.data
     assert client.get(f"/books/{book.id}/preview/1").status_code == 404
 
 

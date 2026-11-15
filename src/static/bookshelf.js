@@ -2,24 +2,46 @@
 
 const pdfPreview = document.querySelector("[data-pdf-preview]");
 if (pdfPreview) {
-  const previous = pdfPreview.querySelector("[data-preview-previous]");
-  const next = pdfPreview.querySelector("[data-preview-next]");
-  const status = pdfPreview.parentElement.querySelector("[data-preview-status]");
+  const previousButtons = document.querySelectorAll("[data-preview-previous]");
+  const nextButtons = document.querySelectorAll("[data-preview-next]");
+  const statuses = document.querySelectorAll("[data-preview-status]");
+  const expand = pdfPreview.querySelector("[data-preview-expand]");
+  const modalElement = document.querySelector("#pdf-preview-modal");
+  const modalImageContainer = modalElement.querySelector("[data-preview-modal-image]");
+  const frames = [pdfPreview, modalElement.querySelector("[data-preview-modal-page]")];
+  const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
   const firstPageUrl = new URL(pdfPreview.dataset.pdfPreview, window.location.href);
   let pageNumber = 0;
   let pageCount = 0;
   let loading = false;
+  let modalOpen = false;
+  let largePage = false;
+  let currentImageUrl;
+
+  function setStatus(text) {
+    statuses.forEach((status) => { status.textContent = text; });
+  }
+
+  function updateButtons() {
+    previousButtons.forEach((button) => { button.disabled = loading || pageNumber <= 1; });
+    nextButtons.forEach((button) => {
+      button.disabled = loading || !pageCount || pageNumber >= pageCount;
+    });
+  }
 
   async function showPage(number) {
     if (loading || number < 1 || (pageCount && number > pageCount)) return;
     loading = true;
-    previous.disabled = true;
-    next.disabled = true;
-    pdfPreview.setAttribute("aria-busy", "true");
+    updateButtons();
+    frames.forEach((frame) => frame.setAttribute("aria-busy", "true"));
+    const large = modalOpen;
+    let loaded = false;
     let imageUrl;
 
     try {
-      const response = await fetch(new URL(String(number), firstPageUrl));
+      const url = new URL(String(number), firstPageUrl);
+      if (large) url.searchParams.set("size", "large");
+      const response = await fetch(url);
       if (!response.ok) throw new Error("PDF preview unavailable");
       const count = Number(response.headers.get("X-Page-Count"));
       if (!Number.isSafeInteger(count) || count < number) {
@@ -32,33 +54,55 @@ if (pdfPreview) {
       image.src = imageUrl;
       await image.decode();
       pdfPreview.querySelector(".book-cover, .book-cover-placeholder").replaceWith(image);
+      const enlargedImage = image.cloneNode();
+      enlargedImage.className = "book-preview-modal-image";
+      modalImageContainer.replaceChildren(enlargedImage);
+      if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+      currentImageUrl = imageUrl;
+      imageUrl = undefined;
       pageNumber = number;
       pageCount = count;
-      previous.hidden = false;
-      next.hidden = false;
-      status.textContent = `Page ${pageNumber} of ${pageCount}`;
+      largePage = large;
+      loaded = true;
+      expand.disabled = false;
+      [...previousButtons, ...nextButtons].forEach((button) => { button.hidden = false; });
+      setStatus(`Page ${pageNumber} of ${pageCount}`);
     } catch {
-      status.textContent = pageNumber
+      setStatus(pageNumber
         ? `Page ${pageNumber} of ${pageCount}. Unable to load page ${number}. Try again.`
-        : "PDF preview unavailable.";
+        : "PDF preview unavailable.");
     } finally {
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       loading = false;
-      previous.disabled = pageNumber <= 1;
-      next.disabled = !pageCount || pageNumber >= pageCount;
-      pdfPreview.removeAttribute("aria-busy");
+      updateButtons();
+      frames.forEach((frame) => frame.removeAttribute("aria-busy"));
+      // Opening the modal during a page turn should upgrade the arriving page too.
+      if (loaded && modalOpen && !large) showPage(pageNumber);
     }
   }
 
-  previous.addEventListener("click", () => showPage(pageNumber - 1));
-  next.addEventListener("click", () => showPage(pageNumber + 1));
-  pdfPreview.addEventListener("keydown", (event) => {
+  previousButtons.forEach((button) => {
+    button.addEventListener("click", () => showPage(pageNumber - 1));
+  });
+  nextButtons.forEach((button) => {
+    button.addEventListener("click", () => showPage(pageNumber + 1));
+  });
+  function handlePageKey(event) {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       showPage(pageNumber + (event.key === "ArrowLeft" ? -1 : 1));
     }
+  }
+  pdfPreview.addEventListener("keydown", handlePageKey);
+  modalElement.addEventListener("keydown", handlePageKey);
+  expand.addEventListener("click", () => modal.show(expand));
+  modalElement.addEventListener("show.bs.modal", () => {
+    modalOpen = true;
+    if (!largePage) showPage(pageNumber);
   });
+  modalElement.addEventListener("hide.bs.modal", () => { modalOpen = false; });
+  modalElement.addEventListener("hidden.bs.modal", () => { expand.focus(); });
   showPage(1);
 }
 

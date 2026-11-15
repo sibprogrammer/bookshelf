@@ -239,7 +239,10 @@ def create_app(config: Config | None = None) -> Flask:
                 page = document.load_page(page_number - 1)
                 if page.rect.is_empty or page.rect.is_infinite:
                     abort(422)
-                scale = min(666 / page.rect.width, 1000 / page.rect.height)
+                width, height = (
+                    (1332, 2000) if request.args.get("size") == "large" else (666, 1000)
+                )
+                scale = min(width / page.rect.width, height / page.rect.height)
                 image = page.get_pixmap(
                     matrix=pymupdf.Matrix(scale, scale),
                     colorspace=pymupdf.csRGB,

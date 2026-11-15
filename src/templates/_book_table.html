@@ -4,13 +4,13 @@
         <thead class="table-light">
           <tr>
             <th scope="col" class="px-4 py-3">Title</th>
-            <th scope="col" class="formats pe-4">Open format</th>
+            <th scope="col" class="formats pe-4">Open</th>
           </tr>
         </thead>
         <tbody>
           {% for book in books %}
           <tr>
-            <td class="px-4 py-3 text-break" title="{{ book.directory }}">
+            <td class="px-4 py-3 text-break">
               <a href="{{ url_for('details', book_id=book.id) }}">{{ book.title }}</a>
             </td>
             <td class="formats pe-4">

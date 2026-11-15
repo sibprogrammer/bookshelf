@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ book.title }} · Bookshelf{% endblock %}
 {% block heading %}
-  <nav class="mb-4" aria-label="Bookshelf"><a href="{{ url_for('library') }}">Back to library</a></nav>
   <h1 class="h2 text-break mb-4">{{ book.title }}</h1>
 {% endblock %}
 {% block content %}
@@ -17,7 +16,7 @@
           </form>
         </div>
         <dl class="mb-0">
-          <dt class="text-body-secondary small mb-1">Added on disk</dt>
+          <dt class="text-body-secondary small mb-1">Added</dt>
           <dd class="mb-3">
             {% if file.added_at is not none %}
             <time datetime="{{ file.added_at.date().isoformat() }}">{{ file.added_at.strftime('%d %b %Y') }}</time>
@@ -33,8 +32,5 @@
       </li>
       {% endfor %}
     </ul>
-    <div class="card-footer bg-body p-4">
-      <p class="small text-body-secondary mb-0">Each format opens in the default reader on the computer running Bookshelf.</p>
-    </div>
   </section>
 {% endblock %}

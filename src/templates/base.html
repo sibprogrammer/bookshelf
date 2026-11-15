@@ -32,6 +32,11 @@
           <a class="nav-link{% if in_library %} active{% endif %}" href="{{ url_for('library') }}"{% if in_library %} aria-current="page"{% endif %}>Library</a>
         </li>
       </ul>
+      <form class="nav-search d-flex gap-2" action="{{ url_for('search') }}" method="get" role="search">
+        <label class="visually-hidden" for="book-search">Search books</label>
+        <input class="form-control" id="book-search" name="q" type="search" placeholder="Search books…" value="{{ search_query|default('') }}">
+        <button class="btn btn-outline-primary" type="submit">Search</button>
+      </form>
     </nav>
   </header>
   <main class="container py-4 py-md-5">

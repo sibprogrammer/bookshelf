@@ -124,10 +124,15 @@ def test_same_origin_forms_are_allowed(client):
 
 @pytest.mark.parametrize(
     "path, method",
-    [("/", "recent_books"), ("/", "random_books"), ("/library", "books")],
+    [
+        ("/", "recent_books"),
+        ("/", "random_books"),
+        ("/library", "books"),
+        ("/search?q=book", "search_books"),
+    ],
 )
 def test_database_errors_render_cleanly(app, client, monkeypatch, path, method):
-    def fail():
+    def fail(*args):
         raise sqlite3.OperationalError("private database details")
 
     monkeypatch.setattr(app.extensions["store"], method, fail)
@@ -245,7 +250,7 @@ def test_home_lists_twenty_recent_books_as_cards_and_library_keeps_every_book(
     assert set(card_ids[:5]) <= {book.id for book in books.values()}
     assert card_ids[5:] == [book.id for book in expected]
     assert response.data.count(b'class="home-book-card card ') == 25
-    assert b"<form" not in response.data
+    assert b'method="post"' not in response.data
     assert b"<table" not in response.data
     assert b"/open" not in response.data
     assert f'src="/books/{books["Book00"].id}/cover"'.encode() in response.data

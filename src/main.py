@@ -92,6 +92,19 @@ def create_app(config: Config | None = None) -> Flask:
         )
         return render_library(message=message, warning=warning)
 
+    @app.get("/search")
+    def search():
+        query = request.args.get("q", "").strip()
+        books = store.search_books(query)
+        return render_template(
+            "search.html",
+            search_query=query,
+            books=books,
+            cover_book_ids={
+                book.id for book in books if indexer.covers.find(book.files) is not None
+            },
+        )
+
     @app.get("/categories")
     def categories():
         return render_template(

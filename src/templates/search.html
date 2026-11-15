@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Search{% if search_query %}: {{ search_query }}{% endif %} · Bookshelf{% endblock %}
+{% block heading %}
+  <h1 class="h2 mb-1">Search</h1>
+  {% if search_query %}
+  <p class="text-body-secondary text-break mb-4">Results for “{{ search_query }}”.</p>
+  {% else %}
+  <p class="text-body-secondary mb-4">Search by title, author, description, category, or ISBN.</p>
+  {% endif %}
+{% endblock %}
+{% block content %}
+  {% if search_query %}
+  <section aria-labelledby="search-results-heading">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <h2 class="h6 mb-0" id="search-results-heading">Search results</h2>
+      <span class="badge text-bg-secondary">{{ books|length }} book(s)</span>
+    </div>
+    {% if books %}
+    <ul class="search-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for book in books %}
+      <li class="col">
+        {% include "_book_card.html" %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-body-secondary">No books found. Try different keywords.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+{% endblock %}

@@ -1,4 +1,6 @@
 .container { max-width: 1008px; }
+.nav-search { flex: 1 1 100%; min-width: 0; }
+.nav-search .form-control { min-width: 0; }
 .table { table-layout: fixed; }
 .formats { width: 10rem; text-align: right; }
 .table tbody tr:last-child td { border-bottom: 0; }
@@ -17,6 +19,7 @@
   .random-book-grid > :nth-child(-n + 2) { display: block; }
 }
 @media (min-width: 768px) {
+  .nav-search { flex: 1 1 16rem; max-width: 22rem; margin-left: auto; }
   .random-book-grid > :nth-child(-n + 3) { display: block; }
 }
 @media (min-width: 992px) {

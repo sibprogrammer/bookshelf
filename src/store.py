@@ -197,6 +197,27 @@ class Store:
         with self.connect() as connection:
             return self._read_books(connection, category_id=category_id)
 
+    def search_books(self, query: str) -> list[Book]:
+        terms = query.casefold().split()
+        if not terms:
+            return []
+        matches = []
+        for book in self.books():
+            text = "\n".join(
+                value or ""
+                for value in (
+                    book.file_title,
+                    book.title,
+                    book.metadata.author,
+                    book.metadata.description,
+                    book.category.name,
+                    book.metadata.isbn,
+                )
+            ).casefold()
+            if all(term in text for term in terms):
+                matches.append(book)
+        return matches
+
     def categories(self) -> list[Category]:
         with self.connect() as connection:
             return [

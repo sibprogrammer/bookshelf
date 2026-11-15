@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Categories · Bookshelf{% endblock %}
+{% block heading %}
+  <h1 class="h2 mb-1">Categories</h1>
+  <p class="text-body-secondary mb-4">Browse books by category.</p>
+{% endblock %}
+{% block content %}
+  <section class="card shadow-sm" aria-label="Book categories">
+    <ul class="category-grid list-unstyled mb-0">
+      {% for category in categories %}
+      <li>
+        <a class="category-link d-block h-100 py-3 px-4 text-break text-decoration-none text-body" href="{{ url_for('category_details', category_id=category.id) }}">{{ category.name }} ({{ book_counts.get(category.id, 0) }})</a>
+      </li>
+      {% else %}
+      <li class="category-empty text-center p-5">
+        <p class="fw-semibold mb-1">No categories yet.</p>
+        <p class="text-body-secondary mb-0">Go to the <a href="{{ url_for('library') }}">Library</a> to index your books.</p>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}

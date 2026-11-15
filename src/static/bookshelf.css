@@ -3,6 +3,10 @@
 .formats { width: 10rem; text-align: right; }
 .table tbody tr:last-child td { border-bottom: 0; }
 .table-responsive { border-radius: 0 0 var(--bs-card-border-radius) var(--bs-card-border-radius); }
+.category-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.category-grid > li { min-width: 0; }
+.category-link:hover, .category-link:focus-visible { background: var(--bs-tertiary-bg); }
+.category-empty { grid-column: 1 / -1; }
 .book-cover, .book-cover-placeholder { width: 333px; max-width: 100%; aspect-ratio: 333 / 500; height: auto; }
 .book-cover-placeholder { background: var(--bs-tertiary-bg); }
 .home-book-cover { width: 100%; aspect-ratio: 333 / 500; height: auto; object-fit: contain; background: var(--bs-body-bg); }

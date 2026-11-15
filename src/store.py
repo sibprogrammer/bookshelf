@@ -31,11 +31,18 @@ class BookFile:
 
 
 @dataclass(frozen=True)
+class Category:
+    id: int
+    name: str
+
+
+@dataclass(frozen=True)
 class Book:
     title: str
     directory: str
     files: tuple[BookFile, ...]
     id: int
+    category: Category
     metadata: Metadata = field(default_factory=Metadata)
 
     @property
@@ -56,11 +63,16 @@ class Store:
         with self.connect() as connection:
             connection.execute("PRAGMA journal_mode = WAL")
             connection.execute("BEGIN IMMEDIATE")
+            connection.execute("""CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            )""")
             connection.execute("""CREATE TABLE IF NOT EXISTS books (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 file_stem TEXT NOT NULL,
                 title TEXT NOT NULL,
                 directory TEXT NOT NULL,
+                category_id INTEGER NOT NULL REFERENCES categories(id),
                 UNIQUE(directory, file_stem)
             )""")
             connection.execute("""CREATE TABLE IF NOT EXISTS book_files (
@@ -72,6 +84,9 @@ class Store:
                 added_at TEXT,
                 metadata TEXT NOT NULL DEFAULT '{}'
             )""")
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS books_category_id ON books(category_id)"
+            )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS book_files_book_id ON book_files(book_id)"
             )
@@ -95,6 +110,7 @@ class Store:
         *,
         recent: bool = False,
         random_picks: bool = False,
+        category_id: int | None = None,
     ):
         query = ""
         if recent:
@@ -114,18 +130,26 @@ class Store:
             )
         query += (
             "SELECT b.id AS book_id, b.title, b.file_stem, b.directory, "
+            "c.id AS category_id, c.name AS category_name, "
             "f.id AS file_id, "
             "f.file_path, f.extension, f.sha256, f.added_at, f.metadata "
             "FROM books b JOIN book_files f ON f.book_id = b.id "
+            "JOIN categories c ON c.id = b.category_id "
         )
         if recent:
             query += "JOIN recent_books r ON r.id = b.id "
         elif random_picks:
             query += "JOIN random_books r ON r.id = b.id "
-        parameters = ()
+        conditions = []
+        parameters = []
         if book_id is not None:
-            query += "WHERE b.id = ? "
-            parameters = (book_id,)
+            conditions.append("b.id = ?")
+            parameters.append(book_id)
+        if category_id is not None:
+            conditions.append("b.category_id = ?")
+            parameters.append(category_id)
+        if conditions:
+            query += "WHERE " + " AND ".join(conditions) + " "
         query += "ORDER BY "
         if recent:
             query += "r.latest_added_at DESC, "
@@ -137,7 +161,12 @@ class Store:
         files = {}
         for row in connection.execute(query, parameters):
             key = row["book_id"]
-            books[key] = (row["title"], row["directory"], row["file_stem"])
+            books[key] = (
+                row["title"],
+                row["directory"],
+                row["file_stem"],
+                Category(row["category_id"], row["category_name"]),
+            )
             files.setdefault(key, []).append(
                 BookFile(
                     file_path=row["file_path"],
@@ -156,16 +185,41 @@ class Store:
                 directory,
                 tuple(files[key]),
                 key,
+                category=category,
                 metadata=merge_metadata(
                     [(file.extension, file.metadata) for file in files[key]], file_stem
                 ),
             )
-            for key, (title, directory, file_stem) in books.items()
+            for key, (title, directory, file_stem, category) in books.items()
         ]
 
-    def books(self) -> list[Book]:
+    def books(self, category_id: int | None = None) -> list[Book]:
         with self.connect() as connection:
-            return self._read_books(connection)
+            return self._read_books(connection, category_id=category_id)
+
+    def categories(self) -> list[Category]:
+        with self.connect() as connection:
+            return [
+                Category(**row)
+                for row in connection.execute(
+                    "SELECT id, name FROM categories ORDER BY name COLLATE NOCASE, name"
+                )
+            ]
+
+    def category_book_counts(self) -> dict[int, int]:
+        with self.connect() as connection:
+            return dict(
+                connection.execute(
+                    "SELECT category_id, COUNT(*) FROM books GROUP BY category_id"
+                )
+            )
+
+    def category(self, category_id: int) -> Category | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT id, name FROM categories WHERE id = ?", (category_id,)
+            ).fetchone()
+            return Category(**row) if row is not None else None
 
     def recent_books(self) -> list[Book]:
         with self.connect() as connection:
@@ -193,14 +247,26 @@ class Store:
             )
             for (directory, file_stem), group in groups.items():
                 group.sort(key=lambda file: (file.extension != "pdf", file.file_path))
+                folder = Path(group[0].file_path).parent
+                category_name = folder.name or folder.anchor or "Uncategorized"
+                connection.execute(
+                    "INSERT INTO categories (name) VALUES (?) "
+                    "ON CONFLICT(name) DO NOTHING",
+                    (category_name,),
+                )
+                category_id = connection.execute(
+                    "SELECT id FROM categories WHERE name = ?",
+                    (category_name,),
+                ).fetchone()["id"]
                 metadata = merge_metadata(
                     [(file.extension, file.metadata) for file in group], file_stem
                 )
                 connection.execute(
-                    "INSERT INTO books (file_stem, title, directory) VALUES (?, ?, ?) "
+                    "INSERT INTO books (file_stem, title, directory, category_id) "
+                    "VALUES (?, ?, ?, ?) "
                     "ON CONFLICT(directory, file_stem) DO UPDATE SET "
-                    "title = excluded.title",
-                    (file_stem, metadata.title, directory),
+                    "title = excluded.title, category_id = excluded.category_id",
+                    (file_stem, metadata.title, directory, category_id),
                 )
                 book_id = connection.execute(
                     "SELECT id FROM books WHERE directory = ? AND file_stem = ?",
@@ -240,6 +306,10 @@ class Store:
             connection.execute(
                 "DELETE FROM books WHERE NOT EXISTS "
                 "(SELECT 1 FROM book_files WHERE book_files.book_id = books.id)"
+            )
+            connection.execute(
+                "DELETE FROM categories WHERE NOT EXISTS "
+                "(SELECT 1 FROM books WHERE books.category_id = categories.id)"
             )
             check_cancelled(cancel)
             return connection.execute("SELECT count(*) FROM books").fetchone()[0]

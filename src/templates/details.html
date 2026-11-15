@@ -27,6 +27,8 @@
         </div>
         <div class="card-body p-4">
           <dl class="mb-0">
+            <dt class="text-body-secondary small mb-1">Category</dt>
+            <dd class="text-break mb-3"><a href="{{ url_for('category_details', category_id=book.category.id) }}">{{ book.category.name }}</a></dd>
             <dt class="text-body-secondary small mb-1">Added</dt>
             <dd class="mb-3">
               {% if book.added_at is not none %}

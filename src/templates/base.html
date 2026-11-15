@@ -23,6 +23,10 @@
           <a class="nav-link{% if request.endpoint == 'home' %} active{% endif %}" href="{{ url_for('home') }}"{% if request.endpoint == 'home' %} aria-current="page"{% endif %}>Home</a>
         </li>
         <li class="nav-item">
+          {% set in_categories = request.endpoint in ('categories', 'category_details') %}
+          <a class="nav-link{% if in_categories %} active{% endif %}" href="{{ url_for('categories') }}"{% if in_categories %} aria-current="page"{% endif %}>Categories</a>
+        </li>
+        <li class="nav-item">
           {% set in_library = request.endpoint in ('library', 'reindex', 'details', 'open_book') %}
           <a class="nav-link{% if in_library %} active{% endif %}" href="{{ url_for('library') }}"{% if in_library %} aria-current="page"{% endif %}>Library</a>
         </li>

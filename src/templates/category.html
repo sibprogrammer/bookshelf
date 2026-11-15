@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ category.name }} · Bookshelf{% endblock %}
+{% block heading %}
+  <h1 class="h2 text-break mb-1">{{ category.name }}</h1>
+  <p class="text-body-secondary mb-4">Books in this category.</p>
+{% endblock %}
+{% block content %}
+  <section aria-labelledby="category-books-heading">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <h2 class="h6 mb-0" id="category-books-heading">Books</h2>
+      <span class="badge text-bg-secondary">{{ books|length }} book(s)</span>
+    </div>
+    {% if books %}
+    <ul class="category-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for book in books %}
+      <li class="col">
+        {% include "_book_card.html" %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-body-secondary">No books in this category.</p>
+    {% endif %}
+  </section>
+{% endblock %}

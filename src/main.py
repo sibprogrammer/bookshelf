@@ -88,6 +88,31 @@ def create_app(config: Config | None = None) -> Flask:
         )
         return render_library(message=message, warning=warning)
 
+    @app.get("/categories")
+    def categories():
+        return render_template(
+            "categories.html",
+            categories=store.categories(),
+            book_counts=store.category_book_counts(),
+        )
+
+    @app.get("/categories/<int:category_id>")
+    def category_details(category_id: int):
+        if not 0 < category_id <= 2**63 - 1:
+            abort(404)
+        category = store.category(category_id)
+        if category is None:
+            abort(404)
+        books = store.books(category_id=category.id)
+        return render_template(
+            "category.html",
+            category=category,
+            books=books,
+            cover_book_ids={
+                book.id for book in books if indexer.covers.find(book.files) is not None
+            },
+        )
+
     def render_details(book: Book, *, error=""):
         return render_template(
             "details.html",

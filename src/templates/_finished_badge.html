@@ -1,0 +1,4 @@
+{% if book.finished %}
+{% from "_icons.html" import checkmark %}
+<span class="book-finished-badge" role="img" aria-label="Finished" title="Finished">{{ checkmark() }}</span>
+{% endif %}

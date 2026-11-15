@@ -14,7 +14,9 @@
 .book-cover, .home-book-cover { display: block; }
 .book-cover-frame { position: relative; width: 333px; max-width: 100%; }
 .book-card-cover { position: relative; overflow: hidden; border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
-.book-favorite-badge { position: absolute; bottom: .5rem; left: .5rem; display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; color: var(--bs-danger); background: var(--bs-body-bg); border-radius: 50%; box-shadow: 0 1px 4px #0003; }
+.book-favorite-badge, .book-finished-badge { position: absolute; bottom: .5rem; display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; background: var(--bs-body-bg); border-radius: 50%; box-shadow: 0 1px 4px #0003; }
+.book-favorite-badge { left: .5rem; color: var(--bs-danger); }
+.book-finished-badge { right: .5rem; color: var(--bs-success); }
 .home-book-cover { width: 100%; aspect-ratio: 333 / 500; height: auto; object-fit: contain; background: var(--bs-body-bg); }
 .home-book-card:hover { border-color: var(--bs-primary); }
 .home-book-card:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }

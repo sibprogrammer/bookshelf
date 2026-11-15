@@ -23,6 +23,8 @@ Bookshelf is intended for local use. It has no login and opens books in the defa
 
 Use the heart button in a book's details footer to add or remove a favorite. The **Favorites** menu shows your saved books, and favorite books display a heart on their covers throughout the library. Favorites are stored in the database and preserved when reindexing; existing databases are upgraded automatically.
 
+Use the green checkmark button beside the heart to **Mark as read**, or click it again to mark the book as unread. The **Finished** menu shows books you have read, with a green checkmark in a circle at the bottom right of each cover throughout the library. Read status is stored in the database and preserved when reindexing; existing databases are upgraded automatically.
+
 ## Index behavior
 
 - Scans the configured directory and its subdirectories for PDF and EPUB books.

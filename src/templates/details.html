@@ -67,4 +67,18 @@
       </section>
     </div>
   </div>
+  {% if similar_books %}
+  <section class="mt-5" aria-labelledby="similar-heading">
+    <h2 id="similar-heading" class="h2 mb-4">See More</h2>
+    <ul class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for suggestion in similar_books %}
+      <li class="col">
+        {% with book=suggestion.book %}
+        {% include "_book_card.html" %}
+        {% endwith %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
 {% endblock %}

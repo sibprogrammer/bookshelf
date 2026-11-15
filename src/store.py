@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import Event
 
 from .metadata import Metadata, merge_metadata
+from .similarity import SimilarBook, find_similar_books
 
 
 class ScanCancelled(Exception):
@@ -277,6 +278,9 @@ class Store:
             if all(term in text for term in terms):
                 matches.append(book)
         return matches
+
+    def similar_books(self, book: Book) -> list[SimilarBook]:
+        return find_similar_books(book, self.books())
 
     def categories(self) -> list[Category]:
         with self.connect() as connection:

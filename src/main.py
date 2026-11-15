@@ -162,11 +162,18 @@ def create_app(config: Config | None = None) -> Flask:
         )
 
     def render_details(book: Book, *, error=""):
+        similar_books = store.similar_books(book)
         return render_template(
             "details.html",
             book=book,
             error=error,
             cover_available=indexer.covers.find(book.files) is not None,
+            similar_books=similar_books,
+            cover_book_ids={
+                suggestion.book.id
+                for suggestion in similar_books
+                if indexer.covers.find(suggestion.book.files) is not None
+            },
         )
 
     @app.post("/index")

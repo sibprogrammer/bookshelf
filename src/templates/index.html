@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block heading %}
+  <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h2 mb-1">Your books</h1>
+      <p class="text-body-secondary mb-0">Your indexed PDF and EPUB books.</p>
+    </div>
+    <form id="index-form" action="{{ url_for('reindex') }}" method="post">
+      <button class="btn btn-primary" type="submit">
+        <span class="spinner-border spinner-border-sm me-1 d-none" aria-hidden="true"></span>
+        <span data-button-label>Index / reindex books</span>
+      </button>
+    </form>
+  </div>
+{% endblock %}
+{% block content %}
+  <section class="card shadow-sm" aria-labelledby="library-heading">
+    <div class="card-header bg-body d-flex align-items-center justify-content-between py-3">
+      <h2 class="h6 mb-0" id="library-heading">Library</h2>
+      <span class="badge text-bg-secondary">{{ books|length }} book(s)</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <caption class="visually-hidden">Indexed book file names</caption>
+        <thead class="table-light">
+          <tr>
+            <th scope="col" class="px-4 py-3">File name</th>
+            <th scope="col" class="actions pe-4"><span class="visually-hidden">Open locally</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for book in books %}
+          <tr>
+            <td class="px-4 py-3 text-break" title="{{ book.file_path }}">
+              <a href="{{ url_for('details', book_id=book.id) }}">{{ book.file_name }}</a>
+            </td>
+            <td class="actions pe-4">
+              <form action="{{ url_for('open_book', book_id=book.id) }}" method="post">
+                <button type="submit" class="btn btn-outline-secondary btn-sm" title="Open {{ book.file_name }} locally" aria-label="Open {{ book.file_name }} locally">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M14 3h7v7M21 3l-10 10M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/>
+                  </svg>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2" class="text-center py-5 px-4">
+              <p class="fw-semibold mb-1">No books indexed yet.</p>
+              <p class="text-body-secondary mb-0">Use the button above to scan your books directory.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

@@ -1,0 +1,20 @@
+[project]
+name = "bookshelf"
+version = "0.1.0"
+description = "A local book library"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = ["flask>=3.1.2,<4"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.14"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

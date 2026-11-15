@@ -1,0 +1,130 @@
+"""Flask application factory and routes for Bookshelf."""
+
+import os
+import sqlite3
+import stat
+import subprocess
+from pathlib import Path
+
+from flask import Flask, abort, redirect, render_template, request, url_for
+
+from .config import Config, load_config
+from .indexer import Indexer, IndexInProgress
+from .opener import open_local_book
+from .store import Book, ScanCancelled, Store
+
+
+def create_app(config: Config | str | Path | None = None) -> Flask:
+    if not isinstance(config, Config):
+        config = load_config(
+            config or os.environ.get("BOOKSHELF_CONFIG", "config.json")
+        )
+    app = Flask(__name__)
+    app.config["BOOKSHELF_CONFIG"] = config
+    store = Store(config.database_path)
+    indexer = Indexer(store, config.books_dir)
+    app.extensions.update(store=store, indexer=indexer, open_book=open_local_book)
+
+    @app.before_request
+    def protect_local_actions():
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            # Keep other websites from triggering scans or local reader launches.
+            site = request.headers.get("Sec-Fetch-Site")
+            origin = request.headers.get("Origin")
+            if site not in {None, "same-origin", "none"} or (
+                origin is not None and origin != request.host_url.rstrip("/")
+            ):
+                abort(403)
+
+    @app.after_request
+    def response_headers(response):
+        if response.mimetype == "text/html":
+            response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    def render_index(status=200, message="", error=""):
+        return render_template(
+            "index.html", books=store.books(), message=message, error=error
+        ), status
+
+    def find_book(book_id: int) -> Book:
+        if not 0 < book_id <= 2**63 - 1:
+            abort(404)
+        book = store.book(book_id)
+        if book is None:
+            abort(404)
+        return book
+
+    @app.get("/")
+    def home():
+        count = request.args.get("indexed", type=int)
+        message = (
+            f"Index complete. {count} book(s) indexed."
+            if count is not None and count >= 0
+            else ""
+        )
+        return render_index(message=message)
+
+    @app.post("/index")
+    def reindex():
+        try:
+            count = indexer.reindex()
+        except (OSError, sqlite3.Error, IndexInProgress, ScanCancelled) as error:
+            app.logger.exception("Indexing failed")
+            return render_index(
+                status=409 if isinstance(error, IndexInProgress) else 500,
+                error=f"Indexing failed; the existing index was kept. {error}",
+            )
+        return redirect(url_for("home", indexed=count), code=303)
+
+    @app.get("/books/<int:book_id>")
+    def details(book_id: int):
+        return render_template(
+            "details.html",
+            book=find_book(book_id),
+            message="Opening book in your default reader."
+            if request.args.get("opened") == "1"
+            else "",
+        )
+
+    @app.post("/books/<int:book_id>/open")
+    def open_book(book_id: int):
+        book = find_book(book_id)
+
+        def failed(message: str, status: int):
+            return render_template("details.html", book=book, error=message), status
+
+        try:
+            info = Path(book.file_path).stat()
+            if not stat.S_ISREG(info.st_mode):
+                raise FileNotFoundError(book.file_path)
+        except FileNotFoundError:
+            return failed(
+                "Book file not found. Reindex your books directory to update the list.",
+                404,
+            )
+        except OSError:
+            app.logger.exception("Unable to access book %s", book.file_path)
+            return failed("Unable to access this book file.", 500)
+        try:
+            app.extensions["open_book"](book.file_path)
+        except OSError, subprocess.SubprocessError:
+            app.logger.exception("Unable to open book %s", book.file_path)
+            return failed(
+                "Unable to open this book. Check that a default reader is installed "
+                "for this file type.",
+                500,
+            )
+        return redirect(url_for("details", book_id=book.id, opened=1), code=303)
+
+    @app.errorhandler(sqlite3.Error)
+    def database_error(error):
+        app.logger.error("Database error: %s", error)
+        return render_template(
+            "error.html",
+            title="Unable to load your library",
+            error="Unable to load the book index. Please try again.",
+        ), 500
+
+    return app

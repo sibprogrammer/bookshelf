@@ -1,0 +1,4 @@
+{
+  "books_dir": "./books",
+  "database_path": "./data/bookshelf.db"
+}

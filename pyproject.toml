@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "A local book library"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = ["flask>=3.1.2,<4"]
+dependencies = [
+    "flask>=3.1.2,<4",
+    "pillow>=12,<13",
+    "pymupdf>=1.26.6,<2",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.14"]

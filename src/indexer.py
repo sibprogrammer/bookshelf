@@ -1,13 +1,17 @@
 """Scan completely before replacing the saved index in one transaction."""
 
 import hashlib
+import logging
 import os
 import stat
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event, Lock
 
+from .covers import CoverError, Covers
 from .store import BookFile, Store, check_cancelled
+
+logger = logging.getLogger(__name__)
 
 
 class IndexInProgress(Exception):
@@ -56,6 +60,8 @@ class Indexer:
         self.store = store
         self.root = Path(root)
         self.lock = Lock()
+        self.covers = Covers(store.path.parent / "covers")
+        self.cover_errors: list[str] = []
 
     def reindex(self, cancel: Event | None = None) -> int:
         if not self.lock.acquire(blocking=False):
@@ -91,6 +97,22 @@ class Indexer:
                             added_at=file_added_at(info),
                         )
                     )
-            return self.store.sync_files(scanned_files, cancel)
+            self.cover_errors = []
+            groups: dict[tuple[str, str], list[BookFile]] = {}
+            for file in scanned_files:
+                path = Path(file.file_path)
+                groups.setdefault((str(path.parent), path.stem), []).append(file)
+            active_covers = set()
+            for files in groups.values():
+                check_cancelled(cancel)
+                try:
+                    cover = self.covers.ensure(files, cancel)
+                    active_covers.add(cover.name)
+                except CoverError as error:
+                    self.cover_errors.append(str(error))
+                    logger.warning("Cover unavailable: %s", error)
+            count = self.store.sync_files(scanned_files, cancel)
+            self.covers.prune(active_covers)
+            return count
         finally:
             self.lock.release()

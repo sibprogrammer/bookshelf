@@ -6,7 +6,7 @@ import stat
 import subprocess
 from pathlib import Path
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import Flask, abort, redirect, render_template, request, send_file, url_for
 
 from .config import Config, load_config
 from .indexer import Indexer, IndexInProgress
@@ -43,9 +43,13 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
-    def render_library(status=200, message="", error=""):
+    def render_library(status=200, message="", error="", warning=""):
         return render_template(
-            "library.html", books=store.books(), message=message, error=error
+            "library.html",
+            books=store.books(),
+            message=message,
+            error=error,
+            warning=warning,
         ), status
 
     def find_book(book_id: int) -> Book:
@@ -68,7 +72,22 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
             if count is not None and count >= 0
             else ""
         )
-        return render_library(message=message)
+        warning = (
+            f"Covers unavailable for {len(indexer.cover_errors)} book(s). "
+            "See the server logs for details."
+            if indexer.cover_errors
+            else ""
+        )
+        return render_library(message=message, warning=warning)
+
+    def render_details(book: Book, *, message="", error=""):
+        return render_template(
+            "details.html",
+            book=book,
+            message=message,
+            error=error,
+            cover_available=indexer.covers.find(book.files) is not None,
+        )
 
     @app.post("/index")
     def reindex():
@@ -84,13 +103,20 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
 
     @app.get("/books/<int:book_id>")
     def details(book_id: int):
-        return render_template(
-            "details.html",
-            book=find_book(book_id),
+        return render_details(
+            find_book(book_id),
             message="Opening book in your default reader."
             if request.args.get("opened") == "1"
             else "",
         )
+
+    @app.get("/books/<int:book_id>/cover")
+    def cover(book_id: int):
+        book = find_book(book_id)
+        path = indexer.covers.find(book.files)
+        if path is None:
+            abort(404)
+        return send_file(path, mimetype="image/png", conditional=True, max_age=0)
 
     @app.post("/books/<int:book_id>/files/<int:file_id>/open")
     def open_book(book_id: int, file_id: int):
@@ -100,7 +126,7 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
             abort(404)
 
         def failed(message: str, status: int):
-            return render_template("details.html", book=book, error=message), status
+            return render_details(book, error=message), status
 
         try:
             info = Path(file.file_path).stat()

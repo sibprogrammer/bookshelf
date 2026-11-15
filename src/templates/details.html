@@ -4,33 +4,44 @@
   <h1 class="h2 text-break mb-4">{{ book.title }}</h1>
 {% endblock %}
 {% block content %}
-  <section class="card shadow-sm" aria-labelledby="details-heading">
-    <div class="card-header bg-body py-3 px-4"><h2 id="details-heading" class="h6 mb-0">Available formats</h2></div>
-    <ul class="list-group list-group-flush">
-      {% for file in book.files %}
-      <li class="list-group-item p-4">
-        <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
-          <h3 class="h6 mb-0">{{ file.extension|upper }}</h3>
-          <form action="{{ url_for('open_book', book_id=book.id, file_id=file.id) }}" method="post">
-            <button class="btn btn-primary btn-sm" type="submit">Open {{ file.extension|upper }} locally</button>
-          </form>
-        </div>
-        <dl class="mb-0">
-          <dt class="text-body-secondary small mb-1">Added</dt>
-          <dd class="mb-3">
-            {% if file.added_at is not none %}
-            <time datetime="{{ file.added_at.date().isoformat() }}">{{ file.added_at.strftime('%d %b %Y') }}</time>
-            {% else %}
-            <span class="text-body-secondary">Unavailable</span>
-            {% endif %}
-          </dd>
-          <dt class="text-body-secondary small mb-1">Absolute path</dt>
-          <dd class="text-break mb-3">{{ file.file_path }}</dd>
-          <dt class="text-body-secondary small mb-1">SHA-256</dt>
-          <dd class="text-break mb-0"><code>{{ file.sha256 }}</code></dd>
-        </dl>
-      </li>
-      {% endfor %}
-    </ul>
-  </section>
+  <div class="row g-4 align-items-start">
+    <aside class="col-md-auto" aria-label="Book cover">
+      {% if cover_available %}
+      <img class="book-cover img-fluid rounded shadow-sm" src="{{ url_for('cover', book_id=book.id) }}" alt="Cover of {{ book.title }}" width="333" height="500">
+      {% else %}
+      <div class="book-cover-placeholder border rounded text-body-secondary d-flex align-items-center justify-content-center">Cover unavailable</div>
+      {% endif %}
+    </aside>
+    <div class="col-md">
+      <section class="card shadow-sm" aria-labelledby="details-heading">
+        <div class="card-header bg-body py-3 px-4"><h2 id="details-heading" class="h6 mb-0">Available formats</h2></div>
+        <ul class="list-group list-group-flush">
+          {% for file in book.files %}
+          <li class="list-group-item p-4">
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+              <h3 class="h6 mb-0">{{ file.extension|upper }}</h3>
+              <form action="{{ url_for('open_book', book_id=book.id, file_id=file.id) }}" method="post">
+                <button class="btn btn-primary btn-sm" type="submit">Open {{ file.extension|upper }} locally</button>
+              </form>
+            </div>
+            <dl class="mb-0">
+              <dt class="text-body-secondary small mb-1">Added</dt>
+              <dd class="mb-3">
+                {% if file.added_at is not none %}
+                <time datetime="{{ file.added_at.date().isoformat() }}">{{ file.added_at.strftime('%d %b %Y') }}</time>
+                {% else %}
+                <span class="text-body-secondary">Unavailable</span>
+                {% endif %}
+              </dd>
+              <dt class="text-body-secondary small mb-1">Absolute path</dt>
+              <dd class="text-break mb-3">{{ file.file_path }}</dd>
+              <dt class="text-body-secondary small mb-1">SHA-256</dt>
+              <dd class="text-break mb-0"><code>{{ file.sha256 }}</code></dd>
+            </dl>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+  </div>
 {% endblock %}

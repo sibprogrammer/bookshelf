@@ -44,16 +44,24 @@ Relative paths resolve against the config file's directory. Unknown keys, invali
 
 ## Index behavior
 
-- Only regular files with `.pdf` or `.epub` extensions are indexed, case-insensitively. File contents are not parsed or validated as book formats.
+- Only regular files with `.pdf` or `.epub` extensions are indexed, case-insensitively. Cover rendering attempts to read their contents; unreadable books remain indexed with an unavailable cover.
 - Nested directories are scanned. Symlinks inside the tree are skipped. A symlink used as `books_dir` itself is resolved before each scan.
 - A book has a title (the filename without its final extension), a directory, and one or more files. Files with the same title in the same directory are grouped together: `Book.pdf` and `Book.epub` appear as one book with two formats. Titles match exactly, including case; extensions are case-insensitive. Identical titles in different directories remain separate books.
 - Each file stores its format (`pdf` or `epub`), absolute path, SHA-256 (lowercase hex), and `added_at`: the file's creation timestamp on disk, normalized to UTC. It is read from filesystem birth time and refreshed on each scan. Filesystems without birth time store `NULL` and display **Unavailable**. Books and files have separate IDs. Duplicate contents do not cause unrelated titles or directories to be merged.
 - **Home** (`/`) lists the 10 most recently added books, newest first, using the latest file creation timestamp for each book. Both formats stay together in one row. Books without a creation timestamp sort last; ties sort alphabetically by title and then directory.
 - Every scan recomputes SHA-256 by streaming file contents. Existing book and file IDs are preserved; adding or removing a format keeps the book's ID while at least one format remains. Books without files are removed. A successful scan of an empty directory clears the index. Counts refer to books, rather than individual files.
 - Scan errors, missing directories, cancellation, or database errors leave the previous index intact. Changes are committed in one transaction after the entire scan succeeds. Overlapping scans in the app process are rejected while one is running.
-- **Library** (`/library`) lists all titles alphabetically without extensions and provides the reindex action. Hover over a title to see its directory. Each row on both pages has an open button for every available format. Click a title for a details page with a separate creation date, path, SHA-256, and **Open PDF locally** or **Open EPUB locally** action for each file.
-- Format buttons open the selected file in the default reader on the computer running Bookshelf, then return you to the book's details page. macOS uses `open`, Windows uses `os.startfile`, and Linux requires `xdg-open` and a desktop session. No author or cover metadata is collected yet.
+- **Library** (`/library`) lists all titles alphabetically without extensions and provides the reindex action. Hover over a title to see its directory. Each row on both pages has an open button for every available format. Click a title for a details page with the book's cover and a separate creation date, path, SHA-256, and **Open PDF locally** or **Open EPUB locally** action for each file.
+- Format buttons open the selected file in the default reader on the computer running Bookshelf, then return you to the book's details page. macOS uses `open`, Windows uses `os.startfile`, and Linux requires `xdg-open` and a desktop session. No author metadata is collected yet.
 - Index and open actions accept POST requests only. Cross-origin browser requests are rejected before performing either action. Filenames and paths are escaped in templates.
+
+## Cover images
+
+Indexing generates a **333 × 500 pixel PNG** for each book in `data/covers` (a `covers` directory beside the configured database). PyMuPDF renders PDF and EPUB pages in-process; Pillow resizes them without cropping or stretching and centers them on a white canvas. No external rendering programs are needed.
+
+PDF is preferred when both formats exist. The first visually non-empty page is used, including scanned or image-only pages; leading blank pages are skipped. EPUB pages are read in spine order. If the PDF cannot supply a cover, the EPUB is tried. Password-protected, invalid, or entirely blank books show **Cover unavailable**; the Library shows a warning and the server logs contain the reasons.
+
+Covers are cached by source format and SHA-256. Unchanged covers are reused, and identical source contents can share an image. Images are written atomically; unused generated PNGs are removed after a successful index commit. Changed files or a change in available formats select the appropriate new cover. The details page serves the cached image without rendering the book again.
 
 ## Development
 

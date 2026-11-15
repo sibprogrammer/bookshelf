@@ -11,4 +11,9 @@
   <div class="card-body">
     <h3 class="h6 mb-0 text-break">{{ book.file_title }}</h3>
   </div>
+  {% if book.metadata.published_date or book.metadata.page_count %}
+  <div class="card-footer small text-body-secondary">
+    {% if book.metadata.published_date %}{{ book.metadata.published_date[:4] }}{% endif %}{% if book.metadata.published_date and book.metadata.page_count %}, {% endif %}{% if book.metadata.page_count %}{{ book.metadata.page_count }} pages{% endif %}
+  </div>
+  {% endif %}
 </a>

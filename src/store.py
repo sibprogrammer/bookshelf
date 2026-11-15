@@ -86,7 +86,7 @@ class Store:
                 "SELECT b.id, MAX(f.added_at) AS latest_added_at "
                 "FROM books b JOIN book_files f ON f.book_id = b.id "
                 "GROUP BY b.id ORDER BY latest_added_at DESC, "
-                "b.title COLLATE NOCASE, b.directory, b.id LIMIT 10) "
+                "b.title COLLATE NOCASE, b.directory, b.id LIMIT 20) "
             )
         query += (
             "SELECT b.id AS book_id, b.title, b.directory, f.id AS file_id, "

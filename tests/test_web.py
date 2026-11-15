@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from re import findall
 
 import pytest
+from PIL import Image
 
 from src.store import BookFile
 
@@ -203,22 +204,28 @@ def test_cannot_open_file_from_another_book(app, client, library):
     assert calls == []
 
 
-def test_home_lists_ten_recent_books_and_library_keeps_every_book(app, client):
+def test_home_lists_twenty_recent_books_as_cards_and_library_keeps_every_book(
+    app, client
+):
     store = app.extensions["store"]
     base = datetime(2025, 1, 1, tzinfo=UTC)
     files = [
-        BookFile(f"/Book{i:02}.pdf", "pdf", "a" * 64, added_at=base + timedelta(days=i))
-        for i in range(12)
+        BookFile(
+            f"/Book{i:02}.pdf", "pdf", f"{i:064x}", added_at=base + timedelta(days=i)
+        )
+        for i in range(22)
     ]
-    # The newer format makes this the newest book; both files must still render.
     files.append(
-        BookFile("/Book00.epub", "epub", "b" * 64, added_at=base + timedelta(days=20))
+        BookFile("/Book00.epub", "epub", "b" * 64, added_at=base + timedelta(days=40))
     )
     files.append(BookFile("/Unknown.pdf", "pdf", "c" * 64))
     store.sync_files(files)
     books = {book.title: book for book in store.books()}
-    expected = [books["Book00"]] + [books[f"Book{i:02}"] for i in range(11, 2, -1)]
+    expected = [books["Book00"]] + [books[f"Book{i:02}"] for i in range(21, 2, -1)]
     assert store.recent_books() == expected
+    covers = app.extensions["indexer"].covers
+    covers.directory.mkdir(parents=True)
+    Image.new("RGB", (333, 500), "navy").save(covers.path(books["Book00"].files[0]))
     response = client.get("/")
     assert response.status_code == 200
     assert b">Recently Added</h1>" in response.data
@@ -227,16 +234,22 @@ def test_home_lists_ten_recent_books_and_library_keeps_every_book(app, client):
     assert [
         int(book_id) for book_id in findall(rb'href="/books/(\d+)"', response.data)
     ] == [book.id for book in expected]
-    assert b'action="/index"' not in response.data
-    for file in books["Book00"].files:
-        url = f"/books/{books['Book00'].id}/files/{file.id}/open"
-        assert f'action="{url}"'.encode() in response.data
+    assert response.data.count(b'class="home-book-card card ') == 20
+    assert b"<form" not in response.data
+    assert b"<table" not in response.data
+    assert b"/open" not in response.data
+    assert f'src="/books/{books["Book00"].id}/cover"'.encode() in response.data
+    assert b'width="333" height="500"' in response.data
+    assert response.data.count(b"Cover unavailable") == 19
     response = client.get("/library")
     assert response.status_code == 200
     assert b">Library</h1>" in response.data
     assert b'href="/library" aria-current="page">Library</a>' in response.data
     assert b'action="/index"' in response.data
-    assert b"13 book(s)" in response.data
+    assert b"23 book(s)" in response.data
+    for file in books["Book00"].files:
+        url = f"/books/{books['Book00'].id}/files/{file.id}/open"
+        assert f'action="{url}"'.encode() in response.data
     assert [
         int(book_id) for book_id in findall(rb'href="/books/(\d+)"', response.data)
     ] == [book.id for book in store.books()]

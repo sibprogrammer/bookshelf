@@ -9,7 +9,29 @@
   </div>
 {% endblock %}
 {% block content %}
-  <section class="card shadow-sm" aria-label="Recently added books">
-    {% include "_book_table.html" %}
+  <section aria-label="Recently added books">
+    {% if books %}
+    <ul class="home-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for book in books %}
+      <li class="col">
+        <a class="home-book-card card h-100 shadow-sm text-decoration-none text-body" href="{{ url_for('details', book_id=book.id) }}" title="{{ book.title }}">
+          {% if book.id in cover_book_ids %}
+          <img class="home-book-cover card-img-top" src="{{ url_for('cover', book_id=book.id) }}" alt="" width="333" height="500" loading="lazy" decoding="async">
+          {% else %}
+          <div class="home-book-cover card-img-top d-flex align-items-center justify-content-center text-body-secondary p-3">Cover unavailable</div>
+          {% endif %}
+          <div class="card-body">
+            <h2 class="h6 mb-0 text-break">{{ book.title }}</h2>
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="card shadow-sm text-center p-5">
+      <p class="fw-semibold mb-1">No books indexed yet.</p>
+      <p class="text-body-secondary mb-0">Go to the <a href="{{ url_for('library') }}">Library</a> to index your books.</p>
+    </div>
+    {% endif %}
   </section>
 {% endblock %}

@@ -62,7 +62,14 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
 
     @app.get("/")
     def home():
-        return render_template("home.html", books=store.recent_books())
+        books = store.recent_books()
+        return render_template(
+            "home.html",
+            books=books,
+            cover_book_ids={
+                book.id for book in books if indexer.covers.find(book.files) is not None
+            },
+        )
 
     @app.get("/library")
     def library():

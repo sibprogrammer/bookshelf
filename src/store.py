@@ -1,11 +1,14 @@
 """SQLite persistence for books and their PDF/EPUB files."""
 
+import json
 import sqlite3
 from contextlib import closing, contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event
+
+from .metadata import Metadata, merge_metadata
 
 
 class ScanCancelled(Exception):
@@ -24,6 +27,7 @@ class BookFile:
     sha256: str
     id: int = 0
     added_at: datetime | None = None
+    metadata: Metadata = field(default_factory=Metadata)
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,11 @@ class Book:
     directory: str
     files: tuple[BookFile, ...]
     id: int
+    metadata: Metadata = field(default_factory=Metadata)
+
+    @property
+    def file_title(self) -> str:
+        return Path(self.files[0].file_path).stem
 
 
 class Store:
@@ -43,9 +52,10 @@ class Store:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute("""CREATE TABLE IF NOT EXISTS books (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_stem TEXT NOT NULL,
                 title TEXT NOT NULL,
                 directory TEXT NOT NULL,
-                UNIQUE(directory, title)
+                UNIQUE(directory, file_stem)
             )""")
             connection.execute("""CREATE TABLE IF NOT EXISTS book_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +63,8 @@ class Store:
                 extension TEXT NOT NULL CHECK(extension IN ('pdf', 'epub')),
                 file_path TEXT NOT NULL UNIQUE,
                 sha256 TEXT NOT NULL CHECK(length(sha256) = 64),
-                added_at TEXT
+                added_at TEXT,
+                metadata TEXT NOT NULL DEFAULT '{}'
             )""")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS book_files_book_id ON book_files(book_id)"
@@ -86,11 +97,12 @@ class Store:
                 "SELECT b.id, MAX(f.added_at) AS latest_added_at "
                 "FROM books b JOIN book_files f ON f.book_id = b.id "
                 "GROUP BY b.id ORDER BY latest_added_at DESC, "
-                "b.title COLLATE NOCASE, b.directory, b.id LIMIT 20) "
+                "b.file_stem COLLATE NOCASE, b.directory, b.id LIMIT 20) "
             )
         query += (
-            "SELECT b.id AS book_id, b.title, b.directory, f.id AS file_id, "
-            "f.file_path, f.extension, f.sha256, f.added_at "
+            "SELECT b.id AS book_id, b.title, b.file_stem, b.directory, "
+            "f.id AS file_id, "
+            "f.file_path, f.extension, f.sha256, f.added_at, f.metadata "
             "FROM books b JOIN book_files f ON f.book_id = b.id "
         )
         if recent:
@@ -103,14 +115,14 @@ class Store:
         if recent:
             query += "r.latest_added_at DESC, "
         query += (
-            "b.title COLLATE NOCASE, b.directory, b.id, "
+            "b.file_stem COLLATE NOCASE, b.directory, b.id, "
             "CASE f.extension WHEN 'pdf' THEN 0 ELSE 1 END, f.file_path"
         )
         books = {}
         files = {}
         for row in connection.execute(query, parameters):
             key = row["book_id"]
-            books[key] = (row["title"], row["directory"])
+            books[key] = (row["title"], row["directory"], row["file_stem"])
             files.setdefault(key, []).append(
                 BookFile(
                     file_path=row["file_path"],
@@ -120,11 +132,20 @@ class Store:
                     added_at=datetime.fromisoformat(row["added_at"])
                     if row["added_at"] is not None
                     else None,
+                    metadata=Metadata(**json.loads(row["metadata"])),
                 )
             )
         return [
-            Book(title, directory, tuple(files[key]), key)
-            for key, (title, directory) in books.items()
+            Book(
+                title,
+                directory,
+                tuple(files[key]),
+                key,
+                metadata=merge_metadata(
+                    [(file.extension, file.metadata) for file in files[key]], file_stem
+                ),
+            )
+            for key, (title, directory, file_stem) in books.items()
         ]
 
     def books(self) -> list[Book]:
@@ -141,44 +162,58 @@ class Store:
             return books[0] if books else None
 
     def sync_files(self, files: list[BookFile], cancel: Event | None = None) -> int:
+        groups: dict[tuple[str, str], list[BookFile]] = {}
+        for file in files:
+            path = Path(file.file_path)
+            groups.setdefault((str(path.parent), path.stem), []).append(file)
         with self.connect() as connection:
             check_cancelled(cancel)
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 "CREATE TEMP TABLE scanned_paths (file_path TEXT PRIMARY KEY)"
             )
-            for file in files:
-                check_cancelled(cancel)
-                path = Path(file.file_path)
+            for (directory, file_stem), group in groups.items():
+                group.sort(key=lambda file: (file.extension != "pdf", file.file_path))
+                metadata = merge_metadata(
+                    [(file.extension, file.metadata) for file in group], file_stem
+                )
                 connection.execute(
-                    "INSERT INTO books (title, directory) VALUES (?, ?) "
-                    "ON CONFLICT(directory, title) DO NOTHING",
-                    (path.stem, str(path.parent)),
+                    "INSERT INTO books (file_stem, title, directory) VALUES (?, ?, ?) "
+                    "ON CONFLICT(directory, file_stem) DO UPDATE SET "
+                    "title = excluded.title",
+                    (file_stem, metadata.title, directory),
                 )
                 book_id = connection.execute(
-                    "SELECT id FROM books WHERE directory = ? AND title = ?",
-                    (str(path.parent), path.stem),
+                    "SELECT id FROM books WHERE directory = ? AND file_stem = ?",
+                    (directory, file_stem),
                 ).fetchone()["id"]
-                connection.execute(
-                    "INSERT INTO book_files "
-                    "(book_id, extension, file_path, sha256, added_at) "
-                    "VALUES (?, ?, ?, ?, ?) ON CONFLICT(file_path) DO UPDATE SET "
-                    "book_id = excluded.book_id, extension = excluded.extension, "
-                    "sha256 = excluded.sha256, added_at = excluded.added_at",
-                    (
-                        book_id,
-                        file.extension,
-                        file.file_path,
-                        file.sha256,
-                        file.added_at.astimezone(UTC).isoformat(timespec="microseconds")
-                        if file.added_at is not None
-                        else None,
-                    ),
-                )
-                connection.execute(
-                    "INSERT INTO scanned_paths (file_path) VALUES (?)",
-                    (file.file_path,),
-                )
+                for file in group:
+                    check_cancelled(cancel)
+                    connection.execute(
+                        "INSERT INTO book_files "
+                        "(book_id, extension, file_path, sha256, added_at, metadata) "
+                        "VALUES (?, ?, ?, ?, ?, ?) "
+                        "ON CONFLICT(file_path) DO UPDATE SET "
+                        "book_id = excluded.book_id, extension = excluded.extension, "
+                        "sha256 = excluded.sha256, added_at = excluded.added_at, "
+                        "metadata = excluded.metadata",
+                        (
+                            book_id,
+                            file.extension,
+                            file.file_path,
+                            file.sha256,
+                            file.added_at.astimezone(UTC).isoformat(
+                                timespec="microseconds"
+                            )
+                            if file.added_at is not None
+                            else None,
+                            json.dumps(asdict(file.metadata), ensure_ascii=False),
+                        ),
+                    )
+                    connection.execute(
+                        "INSERT INTO scanned_paths (file_path) VALUES (?)",
+                        (file.file_path,),
+                    )
             connection.execute(
                 "DELETE FROM book_files WHERE file_path NOT IN "
                 "(SELECT file_path FROM scanned_paths)"

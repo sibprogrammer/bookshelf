@@ -11,13 +11,13 @@
           {% for book in books %}
           <tr>
             <td class="px-4 py-3 text-break">
-              <a href="{{ url_for('details', book_id=book.id) }}">{{ book.title }}</a>
+              <a href="{{ url_for('details', book_id=book.id) }}">{{ book.file_title }}</a>
             </td>
             <td class="formats pe-4">
               <div class="d-flex flex-wrap justify-content-end gap-2">
                 {% for file in book.files %}
                 <form action="{{ url_for('open_book', book_id=book.id, file_id=file.id) }}" method="post">
-                  <button type="submit" class="btn btn-outline-primary btn-sm" title="Open {{ book.title }} as {{ file.extension|upper }} locally" aria-label="Open {{ book.title }} as {{ file.extension|upper }} locally">{{ file.extension|upper }}</button>
+                  <button type="submit" class="btn btn-outline-primary btn-sm" title="Open {{ book.file_title }} as {{ file.extension|upper }} locally" aria-label="Open {{ book.file_title }} as {{ file.extension|upper }} locally">{{ file.extension|upper }}</button>
                 </form>
                 {% endfor %}
               </div>

@@ -135,7 +135,7 @@ def test_indexing_prefers_pdf_caches_and_serves_png(app, client, library, monkey
     assert len(list(path.parent.glob("*.png"))) == 1
     response = client.get(f"/books/{book.id}")
     assert f'src="/books/{book.id}/cover"'.encode() in response.data
-    assert b'alt="Cover of Book"' in response.data
+    assert f'alt="Cover of {book.file_title}"'.encode() in response.data
     response = client.get(f"/books/{book.id}/cover")
     assert response.status_code == 200
     assert response.mimetype == "image/png"

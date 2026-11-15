@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import Event, Lock
 
 from .covers import CoverError, Covers
+from .metadata import read_metadata
 from .store import BookFile, Store, check_cancelled
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ class Indexer:
                             extension=path.suffix[1:].lower(),
                             sha256=hash_file(path, cancel),
                             added_at=file_added_at(info),
+                            metadata=read_metadata(path),
                         )
                     )
             self.cover_errors = []

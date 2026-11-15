@@ -72,18 +72,38 @@ class Store:
                 yield connection
 
     @staticmethod
-    def _read_books(connection: sqlite3.Connection, book_id: int | None = None):
-        query = (
+    def _read_books(
+        connection: sqlite3.Connection,
+        book_id: int | None = None,
+        *,
+        recent: bool = False,
+    ):
+        query = ""
+        if recent:
+            # Limit books before joining their files, so every format is retained.
+            query = (
+                "WITH recent_books AS ("
+                "SELECT b.id, MAX(f.added_at) AS latest_added_at "
+                "FROM books b JOIN book_files f ON f.book_id = b.id "
+                "GROUP BY b.id ORDER BY latest_added_at DESC, "
+                "b.title COLLATE NOCASE, b.directory, b.id LIMIT 10) "
+            )
+        query += (
             "SELECT b.id AS book_id, b.title, b.directory, f.id AS file_id, "
             "f.file_path, f.extension, f.sha256, f.added_at "
             "FROM books b JOIN book_files f ON f.book_id = b.id "
         )
+        if recent:
+            query += "JOIN recent_books r ON r.id = b.id "
         parameters = ()
         if book_id is not None:
             query += "WHERE b.id = ? "
             parameters = (book_id,)
+        query += "ORDER BY "
+        if recent:
+            query += "r.latest_added_at DESC, "
         query += (
-            "ORDER BY b.title COLLATE NOCASE, b.directory, "
+            "b.title COLLATE NOCASE, b.directory, b.id, "
             "CASE f.extension WHEN 'pdf' THEN 0 ELSE 1 END, f.file_path"
         )
         books = {}
@@ -110,6 +130,10 @@ class Store:
     def books(self) -> list[Book]:
         with self.connect() as connection:
             return self._read_books(connection)
+
+    def recent_books(self) -> list[Book]:
+        with self.connect() as connection:
+            return self._read_books(connection, recent=True)
 
     def book(self, book_id: int) -> Book | None:
         with self.connect() as connection:

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Library · Bookshelf{% endblock %}
+{% block heading %}
+  <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h2 mb-1">Library</h1>
+      <p class="text-body-secondary mb-0">Your indexed PDF and EPUB books.</p>
+    </div>
+    <form id="index-form" action="{{ url_for('reindex') }}" method="post">
+      <button class="btn btn-primary" type="submit">
+        <span class="spinner-border spinner-border-sm me-1 d-none" aria-hidden="true"></span>
+        <span data-button-label>Index / reindex books</span>
+      </button>
+    </form>
+  </div>
+{% endblock %}
+{% block content %}
+  <section class="card shadow-sm" aria-labelledby="library-heading">
+    <div class="card-header bg-body d-flex align-items-center justify-content-between py-3">
+      <h2 class="h6 mb-0" id="library-heading">All books</h2>
+      <span class="badge text-bg-secondary">{{ books|length }} book(s)</span>
+    </div>
+    {% include "_book_table.html" %}
+  </section>
+{% endblock %}

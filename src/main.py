@@ -43,9 +43,9 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
-    def render_index(status=200, message="", error=""):
+    def render_library(status=200, message="", error=""):
         return render_template(
-            "index.html", books=store.books(), message=message, error=error
+            "library.html", books=store.books(), message=message, error=error
         ), status
 
     def find_book(book_id: int) -> Book:
@@ -58,13 +58,17 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
 
     @app.get("/")
     def home():
+        return render_template("home.html", books=store.recent_books())
+
+    @app.get("/library")
+    def library():
         count = request.args.get("indexed", type=int)
         message = (
             f"Index complete. {count} book(s) indexed."
             if count is not None and count >= 0
             else ""
         )
-        return render_index(message=message)
+        return render_library(message=message)
 
     @app.post("/index")
     def reindex():
@@ -72,11 +76,11 @@ def create_app(config: Config | str | Path | None = None) -> Flask:
             count = indexer.reindex()
         except (OSError, sqlite3.Error, IndexInProgress, ScanCancelled) as error:
             app.logger.exception("Indexing failed")
-            return render_index(
+            return render_library(
                 status=409 if isinstance(error, IndexInProgress) else 500,
                 error=f"Indexing failed; the existing index was kept. {error}",
             )
-        return redirect(url_for("home", indexed=count), code=303)
+        return redirect(url_for("library", indexed=count), code=303)
 
     @app.get("/books/<int:book_id>")
     def details(book_id: int):

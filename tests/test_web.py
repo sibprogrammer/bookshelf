@@ -1,17 +1,21 @@
 import sqlite3
 import subprocess
+from datetime import UTC, datetime, timedelta
+from re import findall
 
 import pytest
+
+from src.store import BookFile
 
 
 def test_index_and_details_flow(app, client, library):
     (library / "<b>&book.pdf").write_text("abc")
-    assert b"No books indexed yet" in client.get("/").data
+    assert b"No books indexed yet" in client.get("/library").data
     assert client.get("/index").status_code == 405
     assert app.extensions["store"].books() == []
     response = client.post("/index")
     assert response.status_code == 303
-    assert response.location == "/?indexed=1"
+    assert response.location == "/library?indexed=1"
     response = client.get(response.location)
     assert response.headers["Cache-Control"] == "no-store"
     assert b"Index complete" in response.data
@@ -115,12 +119,13 @@ def test_same_origin_forms_are_allowed(client):
     assert response.status_code == 303
 
 
-def test_database_errors_render_cleanly(app, client, monkeypatch):
+@pytest.mark.parametrize("path, method", [("/", "recent_books"), ("/library", "books")])
+def test_database_errors_render_cleanly(app, client, monkeypatch, path, method):
     def fail():
         raise sqlite3.OperationalError("private database details")
 
-    monkeypatch.setattr(app.extensions["store"], "books", fail)
-    response = client.get("/")
+    monkeypatch.setattr(app.extensions["store"], method, fail)
+    response = client.get(path)
     assert response.status_code == 500
     assert b"Unable to load the book index" in response.data
     assert b"private database details" not in response.data
@@ -145,9 +150,9 @@ def test_dual_format_book_renders_once_and_each_format_opens_its_own_file(
     pdf.write_text("PDF")
     epub.write_text("EPUB")
     response = client.post("/index")
-    assert response.location == "/?indexed=1"
+    assert response.location == "/library?indexed=1"
     book = app.extensions["store"].books()[0]
-    response = client.get("/")
+    response = client.get("/library")
     assert response.data.count(f'href="/books/{book.id}"'.encode()) == 1
     assert b">A Book</a>" in response.data
     assert b"A Book.pdf" not in response.data
@@ -196,3 +201,76 @@ def test_cannot_open_file_from_another_book(app, client, library):
         url = f"/books/{first.id}/files/{file_id}/open"
         assert client.post(url).status_code == 404
     assert calls == []
+
+
+def test_home_lists_ten_recent_books_and_library_keeps_every_book(app, client):
+    store = app.extensions["store"]
+    base = datetime(2025, 1, 1, tzinfo=UTC)
+    files = [
+        BookFile(f"/Book{i:02}.pdf", "pdf", "a" * 64, added_at=base + timedelta(days=i))
+        for i in range(12)
+    ]
+    # The newer format makes this the newest book; both files must still render.
+    files.append(
+        BookFile("/Book00.epub", "epub", "b" * 64, added_at=base + timedelta(days=20))
+    )
+    files.append(BookFile("/Unknown.pdf", "pdf", "c" * 64))
+    store.sync_files(files)
+    books = {book.title: book for book in store.books()}
+    expected = [books["Book00"]] + [books[f"Book{i:02}"] for i in range(11, 2, -1)]
+    assert store.recent_books() == expected
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b">Recently added</h1>" in response.data
+    assert b'href="/" aria-current="page">Home</a>' in response.data
+    assert "Home · Bookshelf".encode() in response.data
+    assert [
+        int(book_id) for book_id in findall(rb'href="/books/(\d+)"', response.data)
+    ] == [book.id for book in expected]
+    assert b'action="/index"' not in response.data
+    for file in books["Book00"].files:
+        url = f"/books/{books['Book00'].id}/files/{file.id}/open"
+        assert f'action="{url}"'.encode() in response.data
+    response = client.get("/library")
+    assert response.status_code == 200
+    assert b">Library</h1>" in response.data
+    assert b'href="/library" aria-current="page">Library</a>' in response.data
+    assert b'action="/index"' in response.data
+    assert b"13 book(s)" in response.data
+    assert [
+        int(book_id) for book_id in findall(rb'href="/books/(\d+)"', response.data)
+    ] == [book.id for book in store.books()]
+    response = client.get(f"/books/{books['Book00'].id}")
+    assert b'href="/library" aria-current="page">Library</a>' in response.data
+    assert b'href="/library">Back to library</a>' in response.data
+
+
+def test_recent_books_sort_unknown_dates_last_and_break_ties_alphabetically(store):
+    date = datetime(2025, 1, 1, tzinfo=UTC)
+    store.sync_files(
+        [
+            BookFile("/Z dated.pdf", "pdf", "a" * 64, added_at=date),
+            BookFile("/A dated.pdf", "pdf", "b" * 64, added_at=date),
+            BookFile("/A unknown.pdf", "pdf", "c" * 64),
+            BookFile("/B unknown.epub", "epub", "d" * 64),
+        ]
+    )
+    assert [book.title for book in store.recent_books()] == [
+        "A dated",
+        "Z dated",
+        "A unknown",
+        "B unknown",
+    ]
+
+
+def test_empty_home_links_to_library_for_indexing(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b">Recently added</h1>" in response.data
+    assert b"No books indexed yet" in response.data
+    assert b'href="/library">Library</a> to index your books' in response.data
+    assert b'action="/index"' not in response.data
+    response = client.get("/library")
+    assert response.status_code == 200
+    assert b"Use the button above to scan" in response.data
+    assert b'action="/index"' in response.data

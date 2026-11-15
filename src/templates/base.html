@@ -11,13 +11,22 @@
 </head>
 <body class="bg-body-tertiary">
   <header class="bg-body border-bottom">
-    <nav class="container py-3" aria-label="Main navigation">
+    <nav class="container d-flex flex-wrap align-items-center gap-3 py-3" aria-label="Main navigation">
       <a class="navbar-brand fw-semibold d-inline-flex align-items-center gap-2" href="{{ url_for('home') }}">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 4h5v16H4zM9 4h5v16H9zM15 5l4-1 4 15-4 1z"/>
         </svg>
         Bookshelf
       </a>
+      <ul class="nav nav-pills gap-1">
+        <li class="nav-item">
+          <a class="nav-link{% if request.endpoint == 'home' %} active{% endif %}" href="{{ url_for('home') }}"{% if request.endpoint == 'home' %} aria-current="page"{% endif %}>Home</a>
+        </li>
+        <li class="nav-item">
+          {% set in_library = request.endpoint in ('library', 'reindex', 'details', 'open_book') %}
+          <a class="nav-link{% if in_library %} active{% endif %}" href="{{ url_for('library') }}"{% if in_library %} aria-current="page"{% endif %}>Library</a>
+        </li>
+      </ul>
     </nav>
   </header>
   <main class="container py-4 py-md-5">

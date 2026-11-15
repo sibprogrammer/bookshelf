@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Home · Bookshelf{% endblock %}
+{% block heading %}
+  <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h2 mb-1">Recently added</h1>
+      <p class="text-body-secondary mb-0">The latest additions to your library.</p>
+    </div>
+  </div>
+{% endblock %}
+{% block content %}
+  <section class="card shadow-sm" aria-label="Recently added books">
+    {% include "_book_table.html" %}
+  </section>
+{% endblock %}

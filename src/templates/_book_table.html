@@ -1,24 +1,3 @@
-{% extends "base.html" %}
-{% block heading %}
-  <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mb-4">
-    <div>
-      <h1 class="h2 mb-1">Your books</h1>
-      <p class="text-body-secondary mb-0">Your indexed PDF and EPUB books.</p>
-    </div>
-    <form id="index-form" action="{{ url_for('reindex') }}" method="post">
-      <button class="btn btn-primary" type="submit">
-        <span class="spinner-border spinner-border-sm me-1 d-none" aria-hidden="true"></span>
-        <span data-button-label>Index / reindex books</span>
-      </button>
-    </form>
-  </div>
-{% endblock %}
-{% block content %}
-  <section class="card shadow-sm" aria-labelledby="library-heading">
-    <div class="card-header bg-body d-flex align-items-center justify-content-between py-3">
-      <h2 class="h6 mb-0" id="library-heading">Library</h2>
-      <span class="badge text-bg-secondary">{{ books|length }} book(s)</span>
-    </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <caption class="visually-hidden">Indexed books and available formats</caption>
@@ -48,12 +27,14 @@
           <tr>
             <td colspan="2" class="text-center py-5 px-4">
               <p class="fw-semibold mb-1">No books indexed yet.</p>
+              {% if request.endpoint in ('library', 'reindex') %}
               <p class="text-body-secondary mb-0">Use the button above to scan your books directory.</p>
+              {% else %}
+              <p class="text-body-secondary mb-0">Go to the <a href="{{ url_for('library') }}">Library</a> to index your books.</p>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </section>
-{% endblock %}

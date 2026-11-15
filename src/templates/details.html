@@ -40,7 +40,7 @@
             {% for label, value in [('Author', metadata.author), ('Publisher', metadata.publisher), ('Published', metadata.published_date), ('Pages', metadata.page_count), ('ISBN', metadata.isbn), ('Subjects', metadata.subjects), ('Description', metadata.description)] %}
             {% if value is not none %}
             <dt class="text-body-secondary small mb-1">{{ label }}</dt>
-            <dd class="text-break mb-3">{{ value }}</dd>
+            <dd class="text-break mb-3">{% if label == 'Published' %}<time datetime="{{ value }}">{{ value|published_date }}</time>{% else %}{{ value }}{% endif %}</dd>
             {% endif %}
             {% endfor %}
           </dl>

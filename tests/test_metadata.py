@@ -425,7 +425,7 @@ def test_publication_date_is_cleaned_before_storage_and_display(app, client):
         row = connection.execute("SELECT metadata FROM book_files").fetchone()
         assert json.loads(row["metadata"])["published_date"] == "2022-10-20"
     page = client.get(f"/books/{store.books()[0].id}")
-    assert b">2022-10-20</dd>" in page.data
+    assert b'<time datetime="2022-10-20">20 Oct 2022</time>' in page.data
     assert b"0101-01-01" not in page.data
 
 

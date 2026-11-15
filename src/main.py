@@ -3,6 +3,7 @@
 import sqlite3
 import stat
 import subprocess
+from datetime import date
 from pathlib import Path
 
 from flask import Flask, abort, redirect, render_template, request, send_file, url_for
@@ -21,6 +22,14 @@ def create_app(config: Config | None = None) -> Flask:
     store = Store(config.database_path)
     indexer = Indexer(store, config.books_dir)
     app.extensions.update(store=store, indexer=indexer, open_book=open_local_book)
+
+    @app.template_filter("published_date")
+    def format_published_date(value: str) -> str:
+        parts = [int(part) for part in value.split("-")]
+        if len(parts) == 1:
+            return value
+        published = date(parts[0], parts[1], parts[2] if len(parts) == 3 else 1)
+        return published.strftime("%d %b %Y" if len(parts) == 3 else "%b %Y")
 
     @app.before_request
     def protect_local_actions():

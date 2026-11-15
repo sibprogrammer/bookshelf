@@ -24,7 +24,9 @@ def make_pdf(path, color=(1, 0, 0), *, blanks=0, size=(600, 1000)):
     return path
 
 
-def make_epub(path, *, page_body=None, image_size=(300, 500)):
+def make_epub(
+    path, *, page_body=None, image_size=(300, 500), cover=None, overrides=None
+):
     image = BytesIO()
     Image.new("RGB", image_size, "red").save(image, "PNG")
     declared = BytesIO()
@@ -47,8 +49,7 @@ def make_epub(path, *, page_body=None, image_size=(300, 500)):
             <item id="blank" href="blank.xhtml" media-type="application/xhtml+xml"/>
             <item id="page" href="page.xhtml" media-type="application/xhtml+xml"/>
             <item id="red" href="red.png" media-type="image/png"/>
-            <item id="blue" href="blue.png" media-type="image/png"
-              properties="cover-image"/>
+            <item id="blue" href="blue.png" media-type="image/png"/>
           </manifest>
           <spine><itemref idref="blank"/><itemref idref="page"/></spine>
         </package>""",
@@ -61,10 +62,21 @@ def make_epub(path, *, page_body=None, image_size=(300, 500)):
         "OPS/red.png": image.getvalue(),
         "OPS/blue.png": declared.getvalue(),
     }
+    if cover == "epub3":
+        files["OPS/book.opf"] = files["OPS/book.opf"].replace(
+            'id="blue"', 'id="blue" properties="cover-image"'
+        )
+    elif cover == "epub2":
+        files["OPS/book.opf"] = (
+            files["OPS/book.opf"]
+            .replace('version="3.0"', 'version="2.0"')
+            .replace("</metadata>", '<meta name="cover" content="blue"/></metadata>')
+        )
     if page_body is not None:
         files["OPS/page.xhtml"] = f"""<html xmlns="http://www.w3.org/1999/xhtml">
           <head><title>First non-empty page</title></head>
           <body>{page_body}</body></html>"""
+    files.update(overrides or {})
     with ZipFile(path, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip", compress_type=ZIP_STORED)
         for name, content in files.items():
@@ -103,6 +115,55 @@ def test_epub_uses_first_non_empty_page_in_reading_order(tmp_path):
     assert image.getpixel((166, 250)) == (255, 0, 0)
 
 
+@pytest.mark.parametrize("cover", ["epub2", "epub3"])
+def test_epub_prefers_declared_cover_outside_reading_order(tmp_path, cover):
+    source = make_epub(tmp_path / "book.epub", cover=cover)
+    image = render_cover(source)
+    assert image.size == (333, 500)
+    assert image.mode == "RGB"
+    assert image.getpixel((166, 250)) == (0, 0, 255)
+
+
+def test_epub_resolves_cover_href_relative_to_package(tmp_path):
+    source = make_epub(tmp_path / "book.epub", cover="epub3")
+    with ZipFile(source) as archive:
+        package = (
+            archive.read("OPS/book.opf")
+            .decode()
+            .replace(
+                'href="blue.png"',
+                'href="../Images/blue%20cover.png#art" '
+                'properties="scripted cover-image"',
+            )
+            .replace('id="blue" properties="cover-image"', 'id="blue"')
+        )
+        artwork = archive.read("OPS/blue.png")
+    make_epub(
+        source, overrides={"OPS/book.opf": package, "Images/blue cover.png": artwork}
+    )
+    assert render_cover(source).getpixel((166, 250)) == (0, 0, 255)
+
+
+@pytest.mark.parametrize("cover", ["epub2", "epub3"])
+@pytest.mark.parametrize("failure", ["missing", "corrupt", "blank"])
+def test_unusable_epub_cover_falls_back_to_reading_order(tmp_path, cover, failure):
+    overrides = {"OPS/blue.png": b"not an image"}
+    if failure == "blank":
+        blank = BytesIO()
+        Image.new("RGBA", (300, 500), (0, 0, 255, 0)).save(blank, "PNG")
+        overrides["OPS/blue.png"] = blank.getvalue()
+    source = make_epub(tmp_path / "book.epub", cover=cover, overrides=overrides)
+    if failure == "missing":
+        with ZipFile(source) as archive:
+            package = (
+                archive.read("OPS/book.opf")
+                .decode()
+                .replace('href="blue.png"', 'href="missing.png"')
+            )
+        make_epub(source, overrides={"OPS/book.opf": package})
+    assert render_cover(source).getpixel((166, 250)) == (255, 0, 0)
+
+
 @pytest.mark.parametrize("style", ["height:90vh", "width:60px;height:72px"])
 def test_epub_image_only_cover_uses_artwork_instead_of_css_size(tmp_path, style):
     source = make_epub(
@@ -131,21 +192,40 @@ def test_epub_page_with_text_and_image_keeps_page_layout(tmp_path):
     assert any(red > 200 and green < 50 for red, green, _ in image.get_flattened_data())
 
 
-def test_reindex_replaces_old_epub_cover_cache(library, store):
-    source = make_epub(library / "Book.epub")
+@pytest.mark.parametrize("version", ["v1", "v2"])
+def test_reindex_replaces_old_epub_cover_cache(library, store, version):
+    source = make_epub(library / "Book.epub", cover="epub2")
     indexer = Indexer(store, library)
     old_key = hashlib.sha256(
-        f"v1:333x500:epub:{hash_file(source)}".encode()
+        f"{version}:333x500:epub:{hash_file(source)}".encode()
     ).hexdigest()
     indexer.covers.directory.mkdir()
     old_cover = indexer.covers.directory / f"{old_key}.png"
-    Image.new("RGB", (333, 500), "blue").save(old_cover)
+    Image.new("RGB", (333, 500), "red").save(old_cover)
+    file = BookFile(str(source), "epub", hash_file(source))
+    assert indexer.covers.find((file,)) == old_cover
     indexer.reindex()
     cover = indexer.covers.find(store.books()[0].files)
     assert cover != old_cover
     assert not old_cover.exists()
     with Image.open(cover) as image:
-        assert image.getpixel((166, 250)) == (255, 0, 0)
+        assert image.getpixel((166, 250)) == (0, 0, 255)
+
+
+def test_epub_current_cache_takes_precedence_over_legacy_cache(tmp_path):
+    cache = Covers(tmp_path / "covers")
+    cache.directory.mkdir()
+    file = BookFile("/Book.epub", "epub", "a" * 64)
+    legacy_key = hashlib.sha256(f"v2:333x500:epub:{file.sha256}".encode()).hexdigest()
+    legacy = cache.directory / f"{legacy_key}.png"
+    Image.new("RGB", (333, 500), "red").save(legacy)
+    current = cache.path(file)
+    Image.new("RGB", (333, 500), "blue").save(current)
+    assert cache.find((file,)) == current
+    current.write_bytes(b"corrupt PNG")
+    assert cache.find((file,)) == legacy
+    legacy.write_bytes(b"corrupt PNG")
+    assert cache.find((file,)) is None
 
 
 @pytest.mark.parametrize("kind", ["blank", "invalid", "encrypted"])

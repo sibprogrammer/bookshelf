@@ -26,6 +26,7 @@ Bookshelf is intended for local use. It has no login and opens books in the defa
 - Scans the configured directory and its subdirectories for PDF and EPUB books.
 - Groups files with the same title in the same directory into one book, with both formats available when present.
 - Reindexing adds new files, updates existing ones, and removes missing files. A failed scan keeps the previous index.
+- EPUB thumbnails use the declared EPUB 2 or EPUB 3 cover image when readable, falling back to the first non-empty page. Reindex to refresh existing thumbnails after a cover extraction update.
 
 ## Development
 

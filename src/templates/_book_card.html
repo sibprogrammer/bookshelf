@@ -1,0 +1,10 @@
+<a class="home-book-card card h-100 shadow-sm text-decoration-none text-body" href="{{ url_for('details', book_id=book.id) }}" title="{{ book.file_title }}">
+  {% if book.id in cover_book_ids %}
+  <img class="home-book-cover card-img-top" src="{{ url_for('cover', book_id=book.id) }}" alt="" width="333" height="500" loading="lazy" decoding="async">
+  {% else %}
+  <div class="home-book-cover card-img-top d-flex align-items-center justify-content-center text-body-secondary p-3">Cover unavailable</div>
+  {% endif %}
+  <div class="card-body">
+    <h3 class="h6 mb-0 text-break">{{ book.file_title }}</h3>
+  </div>
+</a>

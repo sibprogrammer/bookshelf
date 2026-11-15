@@ -1,29 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Home · Bookshelf{% endblock %}
 {% block heading %}
-  <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mb-4">
-    <div>
-      <h1 class="h2 mb-1">Recently Added</h1>
-      <p class="text-body-secondary mb-0">The latest additions to the library.</p>
-    </div>
-  </div>
+  <h1 class="visually-hidden">Home</h1>
 {% endblock %}
 {% block content %}
-  <section aria-label="Recently added books">
+  <section class="mb-5" aria-labelledby="random-heading">
+    <h2 id="random-heading" class="h2 mb-1">Random Picks</h2>
+    <p class="text-body-secondary mb-4">A selection of books to rediscover.</p>
+    {% if random_books %}
+    <ul class="random-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for book in random_books %}
+      <li class="col">
+        {% include "_book_card.html" %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-body-secondary">Your library is empty.</p>
+    {% endif %}
+  </section>
+  <section aria-labelledby="recent-heading">
+    <h2 id="recent-heading" class="h2 mb-1">Recently Added</h2>
+    <p class="text-body-secondary mb-4">The latest additions to the library.</p>
     {% if books %}
     <ul class="home-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
       {% for book in books %}
       <li class="col">
-        <a class="home-book-card card h-100 shadow-sm text-decoration-none text-body" href="{{ url_for('details', book_id=book.id) }}" title="{{ book.file_title }}">
-          {% if book.id in cover_book_ids %}
-          <img class="home-book-cover card-img-top" src="{{ url_for('cover', book_id=book.id) }}" alt="" width="333" height="500" loading="lazy" decoding="async">
-          {% else %}
-          <div class="home-book-cover card-img-top d-flex align-items-center justify-content-center text-body-secondary p-3">Cover unavailable</div>
-          {% endif %}
-          <div class="card-body">
-            <h2 class="h6 mb-0 text-break">{{ book.file_title }}</h2>
-          </div>
-        </a>
+        {% include "_book_card.html" %}
       </li>
       {% endfor %}
     </ul>

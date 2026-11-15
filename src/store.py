@@ -94,6 +94,7 @@ class Store:
         book_id: int | None = None,
         *,
         recent: bool = False,
+        random_picks: bool = False,
     ):
         query = ""
         if recent:
@@ -105,6 +106,12 @@ class Store:
                 "GROUP BY b.id ORDER BY latest_added_at DESC, "
                 "b.file_stem COLLATE NOCASE, b.directory, b.id LIMIT 20) "
             )
+        elif random_picks:
+            query = (
+                "WITH random_books AS (SELECT id FROM books "
+                "WHERE EXISTS (SELECT 1 FROM book_files WHERE book_id = books.id) "
+                "ORDER BY RANDOM() LIMIT 5) "
+            )
         query += (
             "SELECT b.id AS book_id, b.title, b.file_stem, b.directory, "
             "f.id AS file_id, "
@@ -113,6 +120,8 @@ class Store:
         )
         if recent:
             query += "JOIN recent_books r ON r.id = b.id "
+        elif random_picks:
+            query += "JOIN random_books r ON r.id = b.id "
         parameters = ()
         if book_id is not None:
             query += "WHERE b.id = ? "
@@ -161,6 +170,10 @@ class Store:
     def recent_books(self) -> list[Book]:
         with self.connect() as connection:
             return self._read_books(connection, recent=True)
+
+    def random_books(self) -> list[Book]:
+        with self.connect() as connection:
+            return self._read_books(connection, random_picks=True)
 
     def book(self, book_id: int) -> Book | None:
         with self.connect() as connection:

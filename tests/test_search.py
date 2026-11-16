@@ -118,7 +118,6 @@ def test_search_bar_is_available_in_navigation_across_pages(app, client):
     book = store.books()[0]
     for path in (
         "/",
-        "/library",
         "/categories",
         f"/categories/{book.category.id}",
         f"/books/{book.id}",

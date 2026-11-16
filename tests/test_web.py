@@ -11,15 +11,20 @@ from src.store import BookFile
 
 def test_index_and_details_flow(app, client, library):
     (library / "<b>&book.pdf").write_text("abc")
-    assert b"No books indexed yet" in client.get("/library").data
+    assert b"No categories yet" in client.get("/categories").data
     assert client.get("/index").status_code == 405
     assert app.extensions["store"].books() == []
     response = client.post("/index")
     assert response.status_code == 303
-    assert response.location == "/library?indexed=1"
+    assert response.location == "/categories?indexed=1"
     response = client.get(response.location)
     assert response.headers["Cache-Control"] == "no-store"
     assert b"Index complete" in response.data
+    assert b'href="/categories" aria-current="page">Categories</a>' in response.data
+    assert b'id="index-form" action="/index" method="post"' in response.data
+    category = app.extensions["store"].categories()[0]
+    assert f'href="/categories/{category.id}"'.encode() in response.data
+    response = client.get(f"/categories/{category.id}")
     assert b">&lt;b&gt;&amp;book</h3>" in response.data
     assert b"<b>&book" not in response.data
     book = app.extensions["store"].books()[0]
@@ -34,6 +39,8 @@ def test_index_and_details_flow(app, client, library):
     assert b"Absolute path" not in response.data
     assert b"SHA-256" not in response.data
     assert client.get("/missing").status_code == 404
+    response = client.get("/library")
+    assert response.status_code == 404
 
 
 def test_failed_and_overlapping_index(app, client, library):
@@ -43,9 +50,14 @@ def test_failed_and_overlapping_index(app, client, library):
     with app.extensions["indexer"].lock:
         response = client.post("/index")
     assert response.status_code == 409
+    assert b">Categories</h1>" in response.data
+    assert b'href="/categories" aria-current="page">Categories</a>' in response.data
+    assert b'id="index-form"' in response.data
     library.rename(library.with_name("missing"))
     response = client.post("/index")
     assert response.status_code == 500
+    assert b">Categories</h1>" in response.data
+    assert b'id="index-form"' in response.data
     assert b"existing index was kept" in response.data
     assert app.extensions["store"].books() == before
 
@@ -127,7 +139,8 @@ def test_same_origin_forms_are_allowed(client):
     [
         ("/", "recent_books"),
         ("/", "random_books"),
-        ("/library", "books"),
+        ("/categories", "categories"),
+        ("/categories", "category_book_counts"),
         ("/search?q=book", "search_books"),
     ],
 )
@@ -139,6 +152,7 @@ def test_database_errors_render_cleanly(app, client, monkeypatch, path, method):
     response = client.get(path)
     assert response.status_code == 500
     assert b"Unable to load the book index" in response.data
+    assert b'href="/categories">Back to categories</a>' in response.data
     assert b"private database details" not in response.data
 
 
@@ -161,9 +175,9 @@ def test_dual_format_book_renders_once_and_each_format_opens_its_own_file(
     pdf.write_text("PDF")
     epub.write_text("EPUB")
     response = client.post("/index")
-    assert response.location == "/library?indexed=1"
+    assert response.location == "/categories?indexed=1"
     book = app.extensions["store"].books()[0]
-    response = client.get("/library")
+    response = client.get(f"/categories/{book.category.id}")
     assert response.data.count(f'href="/books/{book.id}"'.encode()) == 1
     assert b">A Book</h3>" in response.data
     assert b"A Book.pdf" not in response.data
@@ -213,7 +227,7 @@ def test_cannot_open_file_from_another_book(app, client, library):
     assert calls == []
 
 
-def test_home_lists_twenty_recent_books_as_cards_and_library_keeps_every_book(
+def test_home_lists_twenty_recent_books_as_cards_and_category_keeps_every_book(
     app, client
 ):
     store = app.extensions["store"]
@@ -257,11 +271,11 @@ def test_home_lists_twenty_recent_books_as_cards_and_library_keeps_every_book(
     assert b'width="333" height="500"' in response.data
     image_count = response.data.count(b'<img class="home-book-cover card-img-top"')
     assert response.data.count(b"Cover unavailable") == 25 - image_count
-    response = client.get("/library")
+    response = client.get(f"/categories/{books['Book00'].category.id}")
     assert response.status_code == 200
-    assert b">Library</h1>" in response.data
-    assert b'href="/library" aria-current="page">Library</a>' in response.data
-    assert b'action="/index"' in response.data
+    assert b'href="/categories" aria-current="page">Categories</a>' in response.data
+    assert b">Library</a>" not in response.data
+    assert b'action="/index"' not in response.data
     assert b"23 book(s)" in response.data
     assert response.data.count(b'class="home-book-card card ') == 23
     assert b"<table" not in response.data
@@ -272,7 +286,7 @@ def test_home_lists_twenty_recent_books_as_cards_and_library_keeps_every_book(
         int(book_id) for book_id in findall(rb'href="/books/(\d+)"', response.data)
     ] == [book.id for book in store.books()]
     response = client.get(f"/books/{books['Book00'].id}")
-    assert b'href="/library" aria-current="page">Library</a>' in response.data
+    assert b">Library</a>" not in response.data
     assert b">Book00</h1>" in response.data
 
 
@@ -294,18 +308,23 @@ def test_recent_books_sort_unknown_dates_last_and_break_ties_alphabetically(stor
     ]
 
 
-def test_empty_home_links_to_library_for_indexing(client):
+def test_empty_home_links_to_categories_for_indexing(client):
     response = client.get("/")
     assert response.status_code == 200
     assert b">Recently Added</h2>" in response.data
     assert b">Random Picks</h2>" in response.data
     assert b"No books indexed yet" in response.data
-    assert b'href="/library">Library</a> to index your books' in response.data
+    assert b'href="/categories">Categories</a> to index your books' in response.data
     assert b'action="/index"' not in response.data
-    response = client.get("/library")
+    response = client.get("/categories")
     assert response.status_code == 200
     assert b"Use the button above to scan" in response.data
-    assert b'action="/index"' in response.data
+    assert b'id="index-form" action="/index" method="post"' in response.data
+    assert b"data-button-label>Reindex</span>" in response.data
+    assert response.data.index(b'id="index-form"') < response.data.index(
+        b'aria-label="Book categories"'
+    )
+    assert b">Library</a>" not in response.data
 
 
 @pytest.mark.parametrize("count", [0, 1, 3, 8])

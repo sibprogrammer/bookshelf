@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import heart, checkmark %}
+{% from "_icons.html" import heart, bookmark, checkmark %}
 {% block title %}{{ book.file_title }} · Bookshelf{% endblock %}
 {% block heading %}
   <h1 class="h2 text-break mb-4">{{ book.file_title }}</h1>
@@ -26,6 +26,7 @@
         </button>
         {% endif %}
         {% include "_favorite_badge.html" %}
+        {% include "_want_to_read_badge.html" %}
         {% include "_finished_badge.html" %}
       </div>
       {% if preview_format %}
@@ -70,6 +71,12 @@
             <input type="hidden" name="favorite" value="{{ '0' if book.favorite else '1' }}">
             <button class="btn {{ 'btn-danger' if book.favorite else 'btn-outline-danger' }} d-inline-flex align-items-center justify-content-center p-2" type="submit" aria-label="{{ 'Remove from favorites' if book.favorite else 'Add to favorites' }}" title="{{ 'Remove from favorites' if book.favorite else 'Add to favorites' }}" aria-pressed="{{ 'true' if book.favorite else 'false' }}">
               {{ heart(filled=book.favorite) }}
+            </button>
+          </form>
+          <form action="{{ url_for('set_want_to_read', book_id=book.id) }}" method="post">
+            <input type="hidden" name="want_to_read" value="{{ '0' if book.want_to_read else '1' }}">
+            <button class="btn {{ 'btn-primary' if book.want_to_read else 'btn-outline-primary' }} d-inline-flex align-items-center justify-content-center p-2" type="submit" aria-label="{{ 'Remove from Want to Read' if book.want_to_read else 'Mark as Want to Read' }}" title="{{ 'Remove from Want to Read' if book.want_to_read else 'Mark as Want to Read' }}" aria-pressed="{{ 'true' if book.want_to_read else 'false' }}">
+              {{ bookmark(filled=book.want_to_read) }}
             </button>
           </form>
           <form action="{{ url_for('set_finished', book_id=book.id) }}" method="post">

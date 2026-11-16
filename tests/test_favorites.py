@@ -89,7 +89,7 @@ def test_favorite_toggle_navigation_and_badges(app, client):
     assert page.status_code == 200
     assert b"No favorite books yet" in page.data
     assert b'href="/favorites" aria-current="page">Favorites</a>' in page.data
-    assert page.data.index(b">Library</a>") < page.data.index(b">Favorites</a>")
+    assert page.data.index(b">Categories</a>") < page.data.index(b">Favorites</a>")
     page = client.get(details_url)
     assert b'<footer class="card-footer' in page.data
     assert b'aria-label="Add to favorites"' in page.data
@@ -106,7 +106,6 @@ def test_favorite_toggle_navigation_and_badges(app, client):
     assert b'name="favorite" value="0"' in page.data
     for url in [
         "/",
-        "/library",
         "/favorites",
         "/search?q=Book",
         f"/categories/{book.category.id}",
@@ -124,7 +123,7 @@ def test_favorite_toggle_navigation_and_badges(app, client):
     assert response.status_code == 303
     assert not store.book(book.id).favorite
     assert b"No favorite books yet" in client.get("/favorites").data
-    assert b'class="book-favorite-badge"' not in client.get("/library").data
+    assert b'class="book-favorite-badge"' not in client.get(details_url).data
     # Favorite badges also render when a cover image is unavailable.
     client.post(f"/books/{other.id}/favorite", data={"favorite": "1"})
     page = client.get("/favorites")

@@ -133,7 +133,7 @@ window.addEventListener("pageshow", () => {
     button.disabled = false;
     button.removeAttribute("aria-busy");
     button.querySelector(".spinner-border").classList.add("d-none");
-    button.querySelector("[data-button-label]").textContent = "Index / reindex books";
+    button.querySelector("[data-button-label]").textContent = "Reindex";
   }
 });
 

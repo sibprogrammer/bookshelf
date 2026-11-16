@@ -113,7 +113,6 @@ def test_mark_as_read_navigation_badges_and_independent_favorites(app, client):
     assert b'name="finished" value="0"' in page.data
     for url in [
         "/",
-        "/library",
         "/finished",
         "/favorites",
         "/search?q=Book",
@@ -134,7 +133,7 @@ def test_mark_as_read_navigation_badges_and_independent_favorites(app, client):
     assert not store.book(book.id).finished
     assert store.book(book.id).favorite
     assert b"No finished books yet" in client.get("/finished").data
-    assert b'class="book-finished-badge"' not in client.get("/library").data
+    assert b'class="book-finished-badge"' not in client.get(details_url).data
     client.post(f"/books/{other.id}/finished", data={"finished": "1"})
     client.post(f"/books/{other.id}/favorite", data={"favorite": "1"})
     client.post(f"/books/{other.id}/favorite", data={"favorite": "0"})

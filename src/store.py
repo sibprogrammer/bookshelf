@@ -47,6 +47,7 @@ class Book:
     metadata: Metadata = field(default_factory=Metadata)
     favorite: bool = False
     finished: bool = False
+    want_to_read: bool = False
 
     @property
     def file_title(self) -> str:
@@ -78,6 +79,7 @@ class Store:
                 category_id INTEGER NOT NULL REFERENCES categories(id),
                 favorite INTEGER NOT NULL DEFAULT 0 CHECK(favorite IN (0, 1)),
                 finished INTEGER NOT NULL DEFAULT 0 CHECK(finished IN (0, 1)),
+                want_to_read INTEGER NOT NULL DEFAULT 0 CHECK(want_to_read IN (0, 1)),
                 UNIQUE(directory, file_stem)
             )""")
             columns = {
@@ -92,6 +94,11 @@ class Store:
                 connection.execute(
                     "ALTER TABLE books ADD COLUMN finished INTEGER NOT NULL "
                     "DEFAULT 0 CHECK(finished IN (0, 1))"
+                )
+            if "want_to_read" not in columns:
+                connection.execute(
+                    "ALTER TABLE books ADD COLUMN want_to_read INTEGER NOT NULL "
+                    "DEFAULT 0 CHECK(want_to_read IN (0, 1))"
                 )
             connection.execute("""CREATE TABLE IF NOT EXISTS book_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,6 +138,7 @@ class Store:
         category_id: int | None = None,
         favorites: bool = False,
         finished: bool = False,
+        want_to_read: bool = False,
     ):
         query = ""
         if recent:
@@ -150,7 +158,7 @@ class Store:
             )
         query += (
             "SELECT b.id AS book_id, b.title, b.file_stem, b.directory, b.favorite, "
-            "b.finished, "
+            "b.finished, b.want_to_read, "
             "c.id AS category_id, c.name AS category_name, "
             "f.id AS file_id, "
             "f.file_path, f.extension, f.sha256, f.added_at, f.metadata "
@@ -173,6 +181,8 @@ class Store:
             conditions.append("b.favorite = 1")
         if finished:
             conditions.append("b.finished = 1")
+        if want_to_read:
+            conditions.append("b.want_to_read = 1")
         if conditions:
             query += "WHERE " + " AND ".join(conditions) + " "
         query += "ORDER BY "
@@ -193,6 +203,7 @@ class Store:
                 Category(row["category_id"], row["category_name"]),
                 bool(row["favorite"]),
                 bool(row["finished"]),
+                bool(row["want_to_read"]),
             )
             files.setdefault(key, []).append(
                 BookFile(
@@ -218,6 +229,7 @@ class Store:
                 ),
                 favorite=favorite,
                 finished=finished,
+                want_to_read=want_to_read,
             )
             for key, (
                 title,
@@ -226,6 +238,7 @@ class Store:
                 category,
                 favorite,
                 finished,
+                want_to_read,
             ) in books.items()
         ]
 
@@ -255,6 +268,18 @@ class Store:
         with self.connect() as connection:
             result = connection.execute(
                 "UPDATE books SET finished = ? WHERE id = ?", (int(finished), book_id)
+            )
+            return result.rowcount > 0
+
+    def want_to_read_books(self) -> list[Book]:
+        with self.connect() as connection:
+            return self._read_books(connection, want_to_read=True)
+
+    def set_want_to_read(self, book_id: int, want_to_read: bool) -> bool:
+        with self.connect() as connection:
+            result = connection.execute(
+                "UPDATE books SET want_to_read = ? WHERE id = ?",
+                (int(want_to_read), book_id),
             )
             return result.rowcount > 0
 

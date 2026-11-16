@@ -1,0 +1,4 @@
+{% if book.want_to_read %}
+{% from "_icons.html" import bookmark %}
+<span class="book-want-to-read-badge" role="img" aria-label="Want to Read" title="Want to Read">{{ bookmark(filled=true) }}</span>
+{% endif %}

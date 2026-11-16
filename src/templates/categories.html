@@ -1,10 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Categories · Bookshelf{% endblock %}
 {% block heading %}
-  <h1 class="h2 mb-1">Categories</h1>
-  <p class="text-body-secondary mb-4">Browse books by category.</p>
+  <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h2 mb-1">Categories</h1>
+      <p class="text-body-secondary mb-0">Browse books by category.</p>
+    </div>
+    <form id="index-form" action="{{ url_for('reindex') }}" method="post">
+      <button class="btn btn-primary" type="submit">
+        <span class="spinner-border spinner-border-sm me-1 d-none" aria-hidden="true"></span>
+        <span data-button-label>Reindex</span>
+      </button>
+    </form>
+  </div>
 {% endblock %}
 {% block content %}
+  <div class="d-flex justify-content-end mb-4">
+    <span class="badge text-bg-secondary">{{ book_counts.values()|sum }} book(s)</span>
+  </div>
   <section class="card shadow-sm" aria-label="Book categories">
     <ul class="category-grid list-unstyled mb-0">
       {% for category in categories %}
@@ -14,7 +27,7 @@
       {% else %}
       <li class="category-empty text-center p-5">
         <p class="fw-semibold mb-1">No categories yet.</p>
-        <p class="text-body-secondary mb-0">Go to the <a href="{{ url_for('library') }}">Library</a> to index your books.</p>
+        <p class="text-body-secondary mb-0">Use the button above to scan your books directory.</p>
       </li>
       {% endfor %}
     </ul>

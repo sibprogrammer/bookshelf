@@ -19,7 +19,7 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p class="text-body-secondary">No finished books yet. Open a book in the <a href="{{ url_for('library') }}">Library</a> and use the checkmark button to mark it as read.</p>
+    <p class="text-body-secondary">No finished books yet. Open a book from <a href="{{ url_for('categories') }}">Categories</a> and use the checkmark button to mark it as read.</p>
     {% endif %}
   </section>
 {% endblock %}

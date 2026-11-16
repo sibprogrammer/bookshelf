@@ -110,6 +110,7 @@ def test_categories_navigation_browsing_and_book_details(app, client):
     response = client.get("/categories")
     assert response.status_code == 200
     assert b'href="/categories" aria-current="page">Categories</a>' in response.data
+    assert b'<span class="badge text-bg-secondary">2 book(s)</span>' in response.data
     assert f'href="/categories/{go.id}">Go (1)</a>'.encode() in response.data
     assert f'href="/categories/{python.id}">Python (1)</a>'.encode() in response.data
     response = client.get(f"/categories/{go.id}")
@@ -133,7 +134,10 @@ def test_empty_categories_and_escaped_folder_names(app, client):
     response = client.get("/categories")
     assert response.status_code == 200
     assert b"No categories yet." in response.data
-    assert b'href="/library"' in response.data
+    assert b'<span class="badge text-bg-secondary">0 book(s)</span>' in response.data
+    assert b"Use the button above to scan your books directory." in response.data
+    assert b'id="index-form" action="/index" method="post"' in response.data
+    assert b'href="/library"' not in response.data
     store = app.extensions["store"]
     store.sync_files([BookFile("/<Go & Books>/Book.pdf", "pdf", SHA256)])
     category = store.categories()[0]

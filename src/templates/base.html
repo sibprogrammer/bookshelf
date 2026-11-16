@@ -24,15 +24,14 @@
           <a class="nav-link{% if request.endpoint == 'home' %} active{% endif %}" href="{{ url_for('home') }}"{% if request.endpoint == 'home' %} aria-current="page"{% endif %}>Home</a>
         </li>
         <li class="nav-item">
-          {% set in_categories = request.endpoint in ('categories', 'category_details') %}
+          {% set in_categories = request.endpoint in ('categories', 'category_details', 'reindex') %}
           <a class="nav-link{% if in_categories %} active{% endif %}" href="{{ url_for('categories') }}"{% if in_categories %} aria-current="page"{% endif %}>Categories</a>
         </li>
         <li class="nav-item">
-          {% set in_library = request.endpoint in ('library', 'reindex', 'details', 'open_book') %}
-          <a class="nav-link{% if in_library %} active{% endif %}" href="{{ url_for('library') }}"{% if in_library %} aria-current="page"{% endif %}>Library</a>
+          <a class="nav-link{% if request.endpoint == 'favorites' %} active{% endif %}" href="{{ url_for('favorites') }}"{% if request.endpoint == 'favorites' %} aria-current="page"{% endif %}>Favorites</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link{% if request.endpoint == 'favorites' %} active{% endif %}" href="{{ url_for('favorites') }}"{% if request.endpoint == 'favorites' %} aria-current="page"{% endif %}>Favorites</a>
+          <a class="nav-link{% if request.endpoint == 'want_to_read' %} active{% endif %}" href="{{ url_for('want_to_read') }}"{% if request.endpoint == 'want_to_read' %} aria-current="page"{% endif %}>Want to Read</a>
         </li>
         <li class="nav-item">
           <a class="nav-link{% if request.endpoint == 'finished' %} active{% endif %}" href="{{ url_for('finished') }}"{% if request.endpoint == 'finished' %} aria-current="page"{% endif %}>Finished</a>

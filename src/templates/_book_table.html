@@ -27,11 +27,7 @@
           <tr>
             <td colspan="2" class="text-center py-5 px-4">
               <p class="fw-semibold mb-1">No books indexed yet.</p>
-              {% if request.endpoint in ('library', 'reindex') %}
-              <p class="text-body-secondary mb-0">Use the button above to scan your books directory.</p>
-              {% else %}
-              <p class="text-body-secondary mb-0">Go to the <a href="{{ url_for('library') }}">Library</a> to index your books.</p>
-              {% endif %}
+              <p class="text-body-secondary mb-0">Go to <a href="{{ url_for('categories') }}">Categories</a> to index your books.</p>
             </td>
           </tr>
           {% endfor %}

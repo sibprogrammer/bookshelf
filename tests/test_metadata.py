@@ -307,7 +307,7 @@ def test_details_show_available_metadata_safely(app, client):
     assert b">Filename</h1>" in response.data
     assert escape(metadata.title).encode() not in response.data
     assert b">Filename</h3>" in client.get("/").data
-    assert b">Filename</h3>" in client.get("/library").data
+    assert b">Filename</h3>" in client.get(f"/categories/{book.category.id}").data
     app.extensions["store"].sync_files(
         [BookFile("/Unknown.epub", "epub", "c" * 64, metadata=Metadata(language="fr"))]
     )

@@ -52,14 +52,17 @@ def create_app(config: Config | None = None) -> Flask:
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
-    def render_library(status=200, message="", error="", warning=""):
-        books = store.books()
+    def render_categories(status=200, message="", error=""):
+        warning = (
+            f"Covers unavailable for {len(indexer.cover_errors)} book(s). "
+            "See the server logs for details."
+            if indexer.cover_errors
+            else ""
+        )
         return render_template(
-            "library.html",
-            books=books,
-            cover_book_ids={
-                book.id for book in books if indexer.covers.find(book.files) is not None
-            },
+            "categories.html",
+            categories=store.categories(),
+            book_counts=store.category_book_counts(),
             message=message,
             error=error,
             warning=warning,
@@ -88,22 +91,6 @@ def create_app(config: Config | None = None) -> Flask:
             },
         )
 
-    @app.get("/library")
-    def library():
-        count = request.args.get("indexed", type=int)
-        message = (
-            f"Index complete. {count} book(s) indexed."
-            if count is not None and count >= 0
-            else ""
-        )
-        warning = (
-            f"Covers unavailable for {len(indexer.cover_errors)} book(s). "
-            "See the server logs for details."
-            if indexer.cover_errors
-            else ""
-        )
-        return render_library(message=message, warning=warning)
-
     @app.get("/search")
     def search():
         query = request.args.get("q", "").strip()
@@ -128,6 +115,17 @@ def create_app(config: Config | None = None) -> Flask:
             },
         )
 
+    @app.get("/want-to-read")
+    def want_to_read():
+        books = store.want_to_read_books()
+        return render_template(
+            "want_to_read.html",
+            books=books,
+            cover_book_ids={
+                book.id for book in books if indexer.covers.find(book.files) is not None
+            },
+        )
+
     @app.get("/finished")
     def finished():
         books = store.finished_books()
@@ -141,11 +139,13 @@ def create_app(config: Config | None = None) -> Flask:
 
     @app.get("/categories")
     def categories():
-        return render_template(
-            "categories.html",
-            categories=store.categories(),
-            book_counts=store.category_book_counts(),
+        count = request.args.get("indexed", type=int)
+        message = (
+            f"Index complete. {count} book(s) indexed."
+            if count is not None and count >= 0
+            else ""
         )
+        return render_categories(message=message)
 
     @app.get("/categories/<int:category_id>")
     def category_details(category_id: int):
@@ -188,11 +188,11 @@ def create_app(config: Config | None = None) -> Flask:
             count = indexer.reindex()
         except (OSError, sqlite3.Error, IndexInProgress, ScanCancelled) as error:
             app.logger.exception("Indexing failed")
-            return render_library(
+            return render_categories(
                 status=409 if isinstance(error, IndexInProgress) else 500,
                 error=f"Indexing failed; the existing index was kept. {error}",
             )
-        return redirect(url_for("library", indexed=count), code=303)
+        return redirect(url_for("categories", indexed=count), code=303)
 
     @app.get("/books/<int:book_id>")
     def details(book_id: int):
@@ -205,6 +205,16 @@ def create_app(config: Config | None = None) -> Flask:
         if favorite not in {"0", "1"}:
             abort(400)
         if not store.set_favorite(book.id, favorite == "1"):
+            abort(404)
+        return redirect(url_for("details", book_id=book.id), code=303)
+
+    @app.post("/books/<int:book_id>/want-to-read")
+    def set_want_to_read(book_id: int):
+        book = find_book(book_id)
+        want_to_read = request.form.get("want_to_read")
+        if want_to_read not in {"0", "1"}:
+            abort(400)
+        if not store.set_want_to_read(book.id, want_to_read == "1"):
             abort(404)
         return redirect(url_for("details", book_id=book.id), code=303)
 

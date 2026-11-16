@@ -17,13 +17,15 @@ Skip the copy if you already have a `config.json`. Edit `books_dir` to point to 
 uv run flask --app src.main run
 ```
 
-Open <http://127.0.0.1:5000>, go to **Library**, and click **Index / reindex books** to scan your books directory. Select a book to view its details and open an available format.
+Open <http://127.0.0.1:5000>, go to **Categories**, and click **Reindex** to scan your books directory. Choose a category, then select a book to view its details and open an available format.
 
 Bookshelf is intended for local use. It has no login and opens books in the default reader on the computer running the app.
 
 Use the heart button in a book's details footer to add or remove a favorite. The **Favorites** menu shows your saved books, and favorite books display a heart on their covers throughout the library. Favorites are stored in the database and preserved when reindexing; existing databases are upgraded automatically.
 
 Use the green checkmark button beside the heart to **Mark as read**, or click it again to mark the book as unread. The **Finished** menu shows books you have read, with a green checkmark in a circle at the bottom right of each cover throughout the library. Read status is stored in the database and preserved when reindexing; existing databases are upgraded automatically.
+
+Use the blue bookmark button in a book's details footer to mark it as **Want to Read**, or click it again to remove the mark. The **Want to Read** menu, before **Finished**, shows these books, with a bookmark at the top right of each cover throughout the library. This status is stored in the database and preserved when reindexing; existing databases are upgraded automatically.
 
 ## Index behavior
 

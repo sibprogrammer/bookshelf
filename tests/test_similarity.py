@@ -225,6 +225,7 @@ def test_store_and_details_show_five_cards_with_covers_and_badges(app, client):
     source, candidate, *_ = store.books()
     store.set_favorite(candidate.id, True)
     store.set_finished(candidate.id, True)
+    store.set_want_to_read(candidate.id, True)
     suggestions = store.similar_books(source)
     assert len(suggestions) == 5
     assert suggestions[0].book == store.book(candidate.id)
@@ -249,6 +250,7 @@ def test_store_and_details_show_five_cards_with_covers_and_badges(app, client):
     assert b'loading="lazy"' in section
     assert section.count(b'class="book-favorite-badge"') == 1
     assert section.count(b'class="book-finished-badge"') == 1
+    assert section.count(b'class="book-want-to-read-badge"') == 1
     assert b"/open" not in section
     assert b"Same author" not in client.get("/").data
 

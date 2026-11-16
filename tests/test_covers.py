@@ -88,12 +88,12 @@ def test_pdf_skips_blank_pages_and_fits_without_cropping(tmp_path):
     source = make_pdf(tmp_path / "landscape.pdf", blanks=2, size=(1000, 600))
     image = render_cover(source)
     assert image.size == (333, 500)
-    assert image.mode == "RGB"
-    assert image.getpixel((166, 250)) == (255, 0, 0)
-    assert image.getpixel((166, 0)) == (255, 255, 255)
-    assert image.getpixel((166, 499)) == (255, 255, 255)
-    assert image.getpixel((0, 250)) == (255, 0, 0)
-    assert image.getpixel((332, 250)) == (255, 0, 0)
+    assert image.mode == "RGBA"
+    assert image.getpixel((166, 250)) == (255, 0, 0, 255)
+    assert image.getpixel((166, 0)) == (0, 0, 0, 0)
+    assert image.getpixel((166, 499)) == (0, 0, 0, 0)
+    assert image.getpixel((0, 250)) == (255, 0, 0, 255)
+    assert image.getpixel((332, 250)) == (255, 0, 0, 255)
 
 
 def test_image_only_page_counts_as_non_empty(tmp_path):
@@ -105,14 +105,14 @@ def test_image_only_page_counts_as_non_empty(tmp_path):
         page = document.new_page(width=300, height=500)
         page.insert_image(page.rect, stream=picture.getvalue())
         document.save(source)
-    assert render_cover(source).getpixel((166, 250)) == (0, 0, 255)
+    assert render_cover(source).getpixel((166, 250)) == (0, 0, 255, 255)
 
 
 def test_epub_uses_first_non_empty_page_in_reading_order(tmp_path):
     source = make_epub(tmp_path / "book.epub")
     image = render_cover(source)
     assert image.size == (333, 500)
-    assert image.getpixel((166, 250)) == (255, 0, 0)
+    assert image.getpixel((166, 250)) == (255, 0, 0, 255)
 
 
 @pytest.mark.parametrize("cover", ["epub2", "epub3"])
@@ -120,8 +120,8 @@ def test_epub_prefers_declared_cover_outside_reading_order(tmp_path, cover):
     source = make_epub(tmp_path / "book.epub", cover=cover)
     image = render_cover(source)
     assert image.size == (333, 500)
-    assert image.mode == "RGB"
-    assert image.getpixel((166, 250)) == (0, 0, 255)
+    assert image.mode == "RGBA"
+    assert image.getpixel((166, 250)) == (0, 0, 255, 255)
 
 
 def test_epub_resolves_cover_href_relative_to_package(tmp_path):
@@ -141,7 +141,7 @@ def test_epub_resolves_cover_href_relative_to_package(tmp_path):
     make_epub(
         source, overrides={"OPS/book.opf": package, "Images/blue cover.png": artwork}
     )
-    assert render_cover(source).getpixel((166, 250)) == (0, 0, 255)
+    assert render_cover(source).getpixel((166, 250)) == (0, 0, 255, 255)
 
 
 @pytest.mark.parametrize("cover", ["epub2", "epub3"])
@@ -161,7 +161,7 @@ def test_unusable_epub_cover_falls_back_to_reading_order(tmp_path, cover, failur
                 .replace('href="blue.png"', 'href="missing.png"')
             )
         make_epub(source, overrides={"OPS/book.opf": package})
-    assert render_cover(source).getpixel((166, 250)) == (255, 0, 0)
+    assert render_cover(source).getpixel((166, 250)) == (255, 0, 0, 255)
 
 
 @pytest.mark.parametrize("style", ["height:90vh", "width:60px;height:72px"])
@@ -173,12 +173,12 @@ def test_epub_image_only_cover_uses_artwork_instead_of_css_size(tmp_path, style)
     )
     image = render_cover(source)
     assert image.size == (333, 500)
-    assert image.getpixel((0, 250)) == (255, 0, 0)
-    assert image.getpixel((332, 250)) == (255, 0, 0)
-    assert image.getpixel((166, 51)) == (255, 0, 0)
-    assert image.getpixel((166, 448)) == (255, 0, 0)
-    assert image.getpixel((166, 0)) == (255, 255, 255)
-    assert image.getpixel((166, 499)) == (255, 255, 255)
+    assert image.getpixel((0, 250)) == (255, 0, 0, 255)
+    assert image.getpixel((332, 250)) == (255, 0, 0, 255)
+    assert image.getpixel((166, 51)) == (255, 0, 0, 255)
+    assert image.getpixel((166, 448)) == (255, 0, 0, 255)
+    assert image.getpixel((166, 0)) == (0, 0, 0, 0)
+    assert image.getpixel((166, 499)) == (0, 0, 0, 0)
 
 
 def test_epub_page_with_text_and_image_keeps_page_layout(tmp_path):
@@ -187,29 +187,40 @@ def test_epub_page_with_text_and_image_keeps_page_layout(tmp_path):
         page_body='<p>Book title</p><img src="red.png" width="60" height="100"/>',
     )
     image = render_cover(source)
-    assert image.getpixel((166, 250)) == (255, 255, 255)
+    assert image.getpixel((166, 250)) == (255, 255, 255, 255)
     assert image.convert("L").point(lambda value: 255 if value < 100 else 0).getbbox()
-    assert any(red > 200 and green < 50 for red, green, _ in image.get_flattened_data())
+    assert any(
+        red > 200 and green < 50 for red, green, _, _ in image.get_flattened_data()
+    )
 
 
-@pytest.mark.parametrize("version", ["v1", "v2"])
-def test_reindex_replaces_old_epub_cover_cache(library, store, version):
-    source = make_epub(library / "Book.epub", cover="epub2")
+@pytest.mark.parametrize(
+    ("extension", "version"),
+    [("pdf", "v1"), ("epub", "v1"), ("epub", "v2"), ("epub", "v3")],
+)
+def test_reindex_replaces_old_cover_cache(library, store, extension, version):
+    source = (
+        make_pdf(library / "Book.pdf", color=(0, 0, 1), size=(1000, 600))
+        if extension == "pdf"
+        else make_epub(library / "Book.epub", cover="epub2")
+    )
     indexer = Indexer(store, library)
     old_key = hashlib.sha256(
-        f"{version}:333x500:epub:{hash_file(source)}".encode()
+        f"{version}:333x500:{extension}:{hash_file(source)}".encode()
     ).hexdigest()
     indexer.covers.directory.mkdir()
     old_cover = indexer.covers.directory / f"{old_key}.png"
     Image.new("RGB", (333, 500), "red").save(old_cover)
-    file = BookFile(str(source), "epub", hash_file(source))
+    file = BookFile(str(source), extension, hash_file(source))
     assert indexer.covers.find((file,)) == old_cover
     indexer.reindex()
     cover = indexer.covers.find(store.books()[0].files)
     assert cover != old_cover
     assert not old_cover.exists()
     with Image.open(cover) as image:
-        assert image.getpixel((166, 250)) == (0, 0, 255)
+        assert image.mode == "RGBA"
+        assert image.getpixel((0, 0)) == (0, 0, 0, 0)
+        assert image.getpixel((166, 250)) == (0, 0, 255, 255)
 
 
 def test_epub_current_cache_takes_precedence_over_legacy_cache(tmp_path):
@@ -261,7 +272,7 @@ def test_indexing_prefers_pdf_caches_and_serves_png(app, client, library, monkey
     with Image.open(path) as image:
         assert image.format == "PNG"
         assert image.size == (333, 500)
-        assert image.getpixel((166, 250)) == (0, 0, 255)
+        assert image.getpixel((166, 250)) == (0, 0, 255, 255)
     assert len(list(path.parent.glob("*.png"))) == 1
     response = client.get(f"/books/{book.id}")
     assert f'src="/books/{book.id}/cover"'.encode() in response.data
@@ -306,13 +317,13 @@ def test_pdf_added_after_epub_replaces_cover_and_removing_it_restores_epub(
     assert pdf_cover != epub_cover
     assert not epub_cover.exists()
     with Image.open(pdf_cover) as image:
-        assert image.getpixel((166, 250)) == (0, 0, 255)
+        assert image.getpixel((166, 250)) == (0, 0, 255, 255)
     (library / "Book.pdf").unlink()
     indexer.reindex()
     assert indexer.covers.find(store.books()[0].files) == epub_cover
     assert not pdf_cover.exists()
     with Image.open(epub_cover) as image:
-        assert image.getpixel((166, 250)) == (255, 0, 0)
+        assert image.getpixel((166, 250)) == (255, 0, 0, 255)
 
 
 def test_blank_pdf_falls_back_to_epub_and_bad_cache_is_repaired(library, store):
@@ -331,7 +342,7 @@ def test_blank_pdf_falls_back_to_epub_and_bad_cache_is_repaired(library, store):
     indexer.reindex()
     with Image.open(cover) as image:
         assert image.size == (333, 500)
-        assert image.getpixel((166, 250)) == (255, 0, 0)
+        assert image.getpixel((166, 250)) == (255, 0, 0, 255)
 
 
 def test_changed_pdf_gets_new_cover_and_deleted_book_covers_are_pruned(library, store):

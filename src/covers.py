@@ -134,7 +134,7 @@ def render_cover(
         if image is None:
             image = _first_page_image(path, cancel)
         fitted = ImageOps.contain(image, size, Image.Resampling.LANCZOS)
-        cover = Image.new("RGB", size, "white")
+        cover = Image.new("RGBA", size, (0, 0, 0, 0))
         cover.paste(
             fitted,
             ((size[0] - fitted.width) // 2, (size[1] - fitted.height) // 2),
@@ -157,7 +157,7 @@ class Covers:
         self.directory = Path(directory)
 
     def path(self, file: BookFile) -> Path:
-        version = "v3" if file.extension == "epub" else "v1"
+        version = "v4" if file.extension == "epub" else "v2"
         return self._path(file, version)
 
     def _path(self, file: BookFile, version: str) -> Path:
@@ -185,7 +185,9 @@ class Covers:
                 path
                 for file in preferred_sources(files)
                 for version in (
-                    ("v3", "v2", "v1") if file.extension == "epub" else ("v1",)
+                    ("v4", "v3", "v2", "v1")
+                    if file.extension == "epub"
+                    else ("v2", "v1")
                 )
                 if self._valid(path := self._path(file, version))
             ),

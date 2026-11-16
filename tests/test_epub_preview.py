@@ -105,8 +105,10 @@ def test_epub_starts_with_declared_cover_outside_reading_order(
         assert response.status_code == 200
         assert response.headers["X-Page-Count"] == "2"
         with Image.open(BytesIO(response.data)) as image:
-            assert image.getpixel((image.width // 2, image.height // 2)) == color
+            expected = (*color, 255) if number == 0 else color
+            assert image.getpixel((image.width // 2, image.height // 2)) == expected
             if number == 0:
+                assert image.mode == "RGBA"
                 assert image.size == ((1332, 2000) if size else (666, 1000))
 
 
@@ -115,7 +117,7 @@ def test_epub_without_declared_cover_uses_cover_fallback(client, epub_book):
     assert response.status_code == 200
     assert response.headers["X-Page-Count"] == "2"
     with Image.open(BytesIO(response.data)) as image:
-        assert image.getpixel((image.width // 2, image.height // 2)) == (255, 0, 0)
+        assert image.getpixel((image.width // 2, image.height // 2)) == (255, 0, 0, 255)
 
 
 def test_epub_text_pagination_is_identical_at_both_resolutions(client, epub_book):

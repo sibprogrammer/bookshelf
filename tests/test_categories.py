@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from re import findall
 from threading import Event
 
 import pytest
@@ -128,6 +129,45 @@ def test_categories_navigation_browsing_and_book_details(app, client):
     assert response.status_code == 200
     assert b">Category</dt>" in response.data
     assert f'href="/categories/{go.id}">Go</a>'.encode() in response.data
+
+
+def test_details_navigation_follows_category_order_without_wrapping(app, client):
+    store = app.extensions["store"]
+    paths = [
+        "/books/Go/zebra.pdf",
+        "/books/Go/Alpha.pdf",
+        "/books/Go/Alpha.epub",
+        "/archive/Go/Alpha.pdf",
+        "/books/Python/Only.pdf",
+    ]
+    store.sync_files([BookFile(path, Path(path).suffix[1:], SHA256) for path in paths])
+    books = {book.directory + "/" + book.file_title: book for book in store.books()}
+    for category_paths in [
+        ["/archive/Go/Alpha", "/books/Go/Alpha", "/books/Go/zebra"],
+        ["/books/Python/Only"],
+    ]:
+        for position, path in enumerate(category_paths):
+            response = client.get(f"/books/{books[path].id}")
+            assert response.status_code == 200
+            expected = []
+            if position > 0:
+                expected.append((str(books[category_paths[position - 1]].id), "prev"))
+            if position + 1 < len(category_paths):
+                expected.append((str(books[category_paths[position + 1]].id), "next"))
+            assert (
+                findall(r'href="/books/(\d+)" rel="(prev|next)"', response.text)
+                == expected
+            )
+            assert b'aria-label="Books in this category"' in response.data
+            assert (
+                b'aria-label="Previous book" title="Previous book" disabled'
+                in response.data
+            ) == (position == 0)
+            assert (
+                b'aria-label="Next book" title="Next book" disabled' in response.data
+            ) == (position == len(category_paths) - 1)
+            assert response.data.count(b'aria-label="Previous book"') == 1
+            assert response.data.count(b'aria-label="Next book"') == 1
 
 
 def test_empty_categories_and_escaped_folder_names(app, client):

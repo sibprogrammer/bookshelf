@@ -2,7 +2,29 @@
 {% from "_icons.html" import heart, bookmark, checkmark %}
 {% block title %}{{ book.file_title }} · Bookshelf{% endblock %}
 {% block heading %}
-  <h1 class="h2 text-break mb-4">{{ book.file_title }}</h1>
+  <div class="d-flex align-items-start justify-content-between gap-3 mb-4">
+    <h1 class="h2 text-break mb-0">{{ book.file_title }}</h1>
+    <nav class="d-flex flex-shrink-0 gap-2 ms-auto" aria-label="Books in this category">
+      {% if previous_book %}
+      <a class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center p-2" href="{{ url_for('details', book_id=previous_book.id) }}" rel="prev" aria-label="Previous book" title="Previous book: {{ previous_book.file_title }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </a>
+      {% else %}
+      <button class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center p-2" type="button" aria-label="Previous book" title="Previous book" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      {% endif %}
+      {% if next_book %}
+      <a class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center p-2" href="{{ url_for('details', book_id=next_book.id) }}" rel="next" aria-label="Next book" title="Next book: {{ next_book.file_title }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </a>
+      {% else %}
+      <button class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center p-2" type="button" aria-label="Next book" title="Next book" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      {% endif %}
+    </nav>
+  </div>
 {% endblock %}
 {% block content %}
   <div class="row g-4 align-items-start">

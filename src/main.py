@@ -166,10 +166,21 @@ def create_app(config: Config | None = None) -> Flask:
 
     def render_details(book: Book, *, error=""):
         similar_books = store.similar_books(book)
+        category_books = store.books(category_id=book.category.id)
+        previous_book = next_book = None
+        for position, category_book in enumerate(category_books):
+            if category_book.id == book.id:
+                if position > 0:
+                    previous_book = category_books[position - 1]
+                if position + 1 < len(category_books):
+                    next_book = category_books[position + 1]
+                break
         preview_file = next(iter(preferred_sources(book.files)), None)
         return render_template(
             "details.html",
             book=book,
+            previous_book=previous_book,
+            next_book=next_book,
             error=error,
             cover_available=indexer.covers.find(book.files) is not None,
             preview_format=preview_file.extension.upper() if preview_file else None,

@@ -10,16 +10,17 @@
   <script defer src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
   <script defer src="{{ url_for('static', filename='bookshelf.js') }}"></script>
 </head>
-<body class="bg-body-tertiary">
-  <header class="bg-body border-bottom">
-    <nav class="container d-flex flex-wrap align-items-center gap-3 py-3" aria-label="Main navigation">
+<body>
+  <a class="skip-link" href="#main-content">Skip to library</a>
+  <header class="library-header">
+    <nav class="library-nav container d-flex flex-wrap align-items-center gap-3 py-3" aria-label="Main navigation">
       <a class="navbar-brand fw-semibold d-inline-flex align-items-center gap-2" href="{{ url_for('home') }}">
         <svg class="brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 4h5v16H4z"/>
           <path d="M9 4h5v16H9z"/>
           <path d="M15 5l4-1 4 15-4 1z"/>
         </svg>
-        Bookshelf
+        <span class="brand-name">Bookshelf<span class="brand-caption">A personal collection</span></span>
       </a>
       <ul class="nav nav-pills gap-1">
         <li class="nav-item">
@@ -54,5 +55,9 @@
     {% if warning %}<div class="alert alert-warning" role="alert">{{ warning }}</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
+  <footer class="library-footer container">
+    <span class="library-ornament" aria-hidden="true">✦</span>
+    <p>A world of stories, a shelf of your own.</p>
+  </footer>
 </body>
 </html>

@@ -152,7 +152,6 @@
   --library-walnut: #2e241e;
   --library-brass: #b18a4d;
   --library-serif: "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", Georgia, serif;
-  --bs-body-font-family: "Optima", "Segoe UI", sans-serif;
   --bs-body-color: var(--library-ink);
   --bs-body-color-rgb: 53, 41, 31;
   --bs-body-bg: #f3ead7;
@@ -185,6 +184,7 @@
 }
 
 body {
+  font-family: var(--library-serif);
   min-height: 100vh;
   background-image:
     radial-gradient(ellipse at 50% 0, #fff9eb80, transparent 70%),
@@ -240,7 +240,7 @@ a { text-underline-offset: .2em; }
 .brand-caption {
   display: block;
   margin-top: .15rem;
-  font: 400 .6rem/1.5 var(--bs-body-font-family);
+  font: 400 .6rem/1.5 var(--library-serif);
   letter-spacing: .19em;
   text-transform: uppercase;
   color: #cbb997;

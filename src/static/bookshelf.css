@@ -1,4 +1,17 @@
 .container { max-width: 1008px; }
+.brand-icon { flex-shrink: 0; overflow: visible; }
+@media (prefers-reduced-motion: no-preference) {
+  .brand-icon path { transform-box: fill-box; transform-origin: center bottom; }
+  .navbar-brand:hover .brand-icon path,
+  .navbar-brand:focus-visible .brand-icon path { animation: brand-book-bounce 600ms ease-in-out; }
+  .navbar-brand .brand-icon path:nth-child(2) { animation-delay: 70ms; }
+  .navbar-brand .brand-icon path:nth-child(3) { animation-delay: 140ms; }
+  @keyframes brand-book-bounce {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    35% { transform: translateY(-3px) rotate(-8deg); }
+    65% { transform: translateY(-1px) rotate(4deg); }
+  }
+}
 .nav-search { flex: 1 1 100%; min-width: 0; }
 .nav-search .form-control { min-width: 0; }
 .table { table-layout: fixed; }

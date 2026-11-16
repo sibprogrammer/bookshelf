@@ -2,6 +2,8 @@
 
 A local PDF and EPUB library built with Python, Flask, and Bootstrap. Dependencies are managed with uv.
 
+<img src="docs/images/bookshelf.png" alt="Bookshelf screenshot" width="600">
+
 ## Run
 
 Requires Python 3.14 or newer. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:

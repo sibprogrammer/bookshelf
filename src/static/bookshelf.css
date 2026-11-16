@@ -108,7 +108,7 @@
   position: relative;
   border-radius: 1px 3px 3px 1px;
   overflow: hidden;
-  background: #f9f1e1;
+  background: white;
   transform: translateZ(calc(var(--book-depth) / 2));
   backface-visibility: hidden;
 }

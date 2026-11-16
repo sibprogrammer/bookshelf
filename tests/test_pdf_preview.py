@@ -74,6 +74,7 @@ def test_pdf_details_offer_preview_even_without_cached_cover(client, preview_boo
     assert b'aria-label="Open larger PDF preview"' in response.data
     assert b'aria-controls="book-preview-modal"' in response.data
     assert b'id="book-preview-modal"' in response.data
+    assert b'id="book-preview-modal-title">Preview</h2>' in response.data
     assert b'data-bs-dismiss="modal" aria-label="Close preview"' in response.data
 
 

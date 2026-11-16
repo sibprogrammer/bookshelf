@@ -75,7 +75,7 @@ def test_epub_details_offer_page_controls_and_modal(client, epub_book):
     assert b'aria-label="Next EPUB page"' in response.data
     assert b'aria-label="Open larger EPUB preview"' in response.data
     assert b'id="book-preview-modal"' in response.data
-    assert b">EPUB preview</h2>" in response.data
+    assert b'id="book-preview-modal-title">EPUB Preview</h2>' in response.data
     assert b"PDF preview" not in response.data
 
 
@@ -159,7 +159,7 @@ def test_pdf_is_preferred_when_both_formats_are_present(
     )
     details = client.get(f"/books/{epub_book.id}")
     assert b'aria-label="Previous PDF page"' in details.data
-    assert b">PDF preview</h2>" in details.data
+    assert b'id="book-preview-modal-title">EPUB Preview</h2>' in details.data
     assert b'data-preview-start="1"' in details.data
     assert b"EPUB preview" not in details.data
     assert client.get(f"/books/{epub_book.id}/preview/0").status_code == 404

@@ -36,6 +36,16 @@ Use the blue bookmark button in a book's details footer to mark it as **Want to 
 - Reindexing adds new files, updates existing ones, and removes missing files. A failed scan keeps the previous index.
 - EPUB thumbnails use the declared EPUB 2 or EPUB 3 cover image when readable, falling back to the first non-empty page. Reindex to refresh existing thumbnails after a cover extraction update.
 
+## Docker Compose
+
+Place your library in `./books`, or create a `books` symlink to an existing book directory, then run:
+
+```sh
+docker compose up --build -d
+```
+
+Open <http://127.0.0.1:5000>, then use **Categories → Reindex** to scan the library.
+
 ## Development
 
 These commands are useful for development purposes:

@@ -1,0 +1,18 @@
+services:
+  bookshelf:
+    build: .
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - type: bind
+        source: ./books
+        target: /app/books
+        read_only: true
+        bind:
+          create_host_path: false
+      - bookshelf-data:/app/data
+    init: true
+    restart: unless-stopped
+
+volumes:
+  bookshelf-data:

@@ -418,7 +418,7 @@ def test_failed_commit_preserves_previous_index_and_cover(library, store, monkey
     pdf.unlink()
     make_pdf(pdf, (0, 0, 1))
 
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise OSError("database unavailable")
 
     monkeypatch.setattr(store, "sync_files", fail)

@@ -344,7 +344,13 @@ class Store:
             books = self._read_books(connection, book_id)
             return books[0] if books else None
 
-    def sync_files(self, files: list[BookFile], cancel: Event | None = None) -> int:
+    def sync_files(
+        self,
+        files: list[BookFile],
+        cancel: Event | None = None,
+        *,
+        root: Path | None = None,
+    ) -> int:
         groups: dict[tuple[str, str], list[BookFile]] = {}
         for file in files:
             path = Path(file.file_path)
@@ -358,7 +364,11 @@ class Store:
             for (directory, file_stem), group in groups.items():
                 group.sort(key=lambda file: (file.extension != "pdf", file.file_path))
                 folder = Path(group[0].file_path).parent
-                category_name = folder.name or folder.anchor or "Uncategorized"
+                if root is not None:
+                    parts = folder.relative_to(root).parts
+                    category_name = parts[0] if parts else "Uncategorized"
+                else:
+                    category_name = folder.name or folder.anchor or "Uncategorized"
                 connection.execute(
                     "INSERT INTO categories (name) VALUES (?) "
                     "ON CONFLICT(name) DO NOTHING",

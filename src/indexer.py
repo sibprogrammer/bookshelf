@@ -116,7 +116,7 @@ class Indexer:
                 except CoverError as error:
                     self.cover_errors.append(str(error))
                     logger.warning("Cover unavailable: %s", error)
-            count = self.store.sync_files(scanned_files, cancel)
+            count = self.store.sync_files(scanned_files, cancel, root=root)
             self.covers.prune(active_covers)
             return count
         finally:

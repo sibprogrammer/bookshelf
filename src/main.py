@@ -193,6 +193,10 @@ def create_app(config: Config | None = None) -> Flask:
             },
         )
 
+    @app.get("/index/progress")
+    def index_progress():
+        return indexer.progress, {"Cache-Control": "no-store"}
+
     @app.post("/index")
     def reindex():
         try:

@@ -15,6 +15,24 @@
   </div>
 {% endblock %}
 {% block content %}
+  <div class="modal" id="index-modal" tabindex="-1" aria-labelledby="index-modal-title" aria-describedby="index-modal-status" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="index-modal-title">Reindexing library</h2>
+        </div>
+        <div class="modal-body">
+          <p id="index-modal-status" role="status">Finding books…</p>
+          <div class="progress" role="progressbar" aria-label="Reindexing progress" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar bg-primary progress-bar-striped progress-bar-animated w-100"></div>
+          </div>
+        </div>
+        <div class="modal-footer" hidden>
+          <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="d-flex justify-content-end mb-4">
     <span class="badge text-bg-secondary">{{ book_counts.values()|sum }} book(s)</span>
   </div>

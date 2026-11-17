@@ -117,18 +117,75 @@ if (bookPreview) {
 }
 
 const indexForm = document.querySelector("#index-form");
+const indexModal = document.querySelector("#index-modal");
 if (indexForm) {
-  indexForm.addEventListener("submit", () => {
+  indexForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
     const button = indexForm.querySelector("button");
+    if (button.disabled) return;
+    const status = indexModal.querySelector("[role='status']");
+    const progress = indexModal.querySelector("[role='progressbar']");
+    const bar = progress.firstElementChild;
+    const footer = indexModal.querySelector(".modal-footer");
+    status.textContent = "Finding books…";
+    progress.hidden = false;
+    progress.removeAttribute("aria-valuenow");
+    bar.style.width = "100%";
+    bar.classList.add("progress-bar-striped", "progress-bar-animated");
+    footer.hidden = true;
+    bootstrap.Modal.getOrCreateInstance(indexModal).show();
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
     button.querySelector(".spinner-border").classList.remove("d-none");
     button.querySelector("[data-button-label]").textContent = "Indexing…";
+    let active = true;
+    async function poll() {
+      try {
+        const response = await fetch(`${indexForm.action}/progress`, { cache: "no-store" });
+        const { phase, completed, total } = await response.json();
+        if (active && response.ok && phase) {
+          const percent = total ? Math.round(completed / total * 100) : null;
+          status.textContent = total ? `${phase}: ${completed} of ${total} (${percent}%)` : `${phase}…`;
+          bar.classList.remove("w-100");
+          bar.style.width = `${percent ?? 100}%`;
+          bar.classList.toggle("progress-bar-striped", percent === null);
+          bar.classList.toggle("progress-bar-animated", percent === null);
+          if (percent === null) progress.removeAttribute("aria-valuenow");
+          else progress.setAttribute("aria-valuenow", percent);
+        }
+      } catch { /* The index request handles failures. */ }
+      if (active) timer = setTimeout(poll, 400);
+    }
+    let timer = setTimeout(poll, 400);
+    try {
+      const response = await fetch(indexForm.action, { method: "POST" });
+      if (!response.ok) {
+        const page = new DOMParser().parseFromString(await response.text(), "text/html");
+        throw new Error(page.querySelector(".alert-danger")?.textContent || "Reindexing failed.");
+      }
+      window.location.assign(response.url);
+    } catch (error) {
+      status.textContent = error instanceof TypeError
+        ? "Connection lost. Reindexing may still be running. Reload to check your library."
+        : error.message;
+      progress.hidden = true;
+      footer.hidden = false;
+      footer.querySelector("button").focus();
+    } finally {
+      active = false;
+      clearTimeout(timer);
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.querySelector(".spinner-border").classList.add("d-none");
+      button.querySelector("[data-button-label]").textContent = "Reindex";
+    }
   });
+  indexModal.addEventListener("hidden.bs.modal", () => indexForm.querySelector("button").focus());
 }
 
 window.addEventListener("pageshow", () => {
   if (indexForm) {
+    bootstrap.Modal.getInstance(indexModal)?.hide();
     const button = indexForm.querySelector("button");
     button.disabled = false;
     button.removeAttribute("aria-busy");

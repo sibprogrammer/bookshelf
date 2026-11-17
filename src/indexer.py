@@ -4,6 +4,7 @@ import hashlib
 import logging
 import os
 import stat
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event, Lock
@@ -20,6 +21,8 @@ class IndexInProgress(Exception):
 
 
 def file_added_at(info: os.stat_result) -> datetime | None:
+    if sys.platform == "linux":
+        return datetime.fromtimestamp(info.st_mtime, UTC)
     birthtime = getattr(info, "st_birthtime", None)
     if birthtime is None:
         return None

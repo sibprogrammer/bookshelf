@@ -11,17 +11,27 @@ SHA256 = "a" * 64
 
 
 @pytest.mark.parametrize("birthtime", [0, 1_600_000_000, 1_700_000_000.125])
-def test_added_date_uses_creation_time(birthtime):
+def test_added_date_uses_creation_time(birthtime, monkeypatch):
+    monkeypatch.setattr("src.indexer.sys.platform", "darwin")
     info = SimpleNamespace(st_birthtime=birthtime, st_mtime=1, st_ctime=2)
     assert file_added_at(info) == datetime.fromtimestamp(birthtime, UTC)
 
 
-def test_missing_creation_time_is_unknown():
+@pytest.mark.parametrize("mtime", [0, 1_600_000_000, 1_700_000_000.125])
+def test_linux_added_date_uses_modification_time(mtime, monkeypatch):
+    monkeypatch.setattr("src.indexer.sys.platform", "linux")
+    info = SimpleNamespace(st_birthtime=1, st_mtime=mtime, st_ctime=2)
+    assert file_added_at(info) == datetime.fromtimestamp(mtime, UTC)
+
+
+def test_missing_creation_time_is_unknown(monkeypatch):
+    monkeypatch.setattr("src.indexer.sys.platform", "darwin")
     # Modification time and inode change time do not describe file creation.
     assert file_added_at(SimpleNamespace(st_mtime=1, st_ctime=2)) is None
 
 
 def test_reindex_reads_and_refreshes_creation_time(library, store, monkeypatch):
+    monkeypatch.setattr("src.indexer.sys.platform", "darwin")
     pdf = library / "Book.pdf"
     epub = library / "Book.epub"
     pdf.write_text("PDF")

@@ -1,5 +1,7 @@
 # Bookshelf
 
+[![Tests](https://github.com/sibprogrammer/bookshelf/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/sibprogrammer/bookshelf/actions/workflows/tests.yml)
+
 A local PDF and EPUB library built with Python, Flask, and Bootstrap. Dependencies are managed with uv.
 
 <img src="docs/images/bookshelf.png" alt="Bookshelf screenshot" width="600">

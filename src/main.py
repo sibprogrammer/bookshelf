@@ -82,13 +82,15 @@ def create_app(config: Config | None = None) -> Flask:
     def home():
         books = store.recent_books()
         random_books = store.random_books()
+        recommended_books = store.recommended_books()
         return render_template(
             "home.html",
             books=books,
             random_books=random_books,
+            recommended_books=recommended_books,
             cover_book_ids={
                 book.id
-                for book in books + random_books
+                for book in books + random_books + recommended_books
                 if indexer.covers.find(book.files) is not None
             },
         )

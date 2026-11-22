@@ -169,6 +169,7 @@ class Store:
         *,
         recent: bool = False,
         random_picks: bool = False,
+        recommended: bool = False,
         category_id: int | None = None,
         favorites: bool = False,
         finished: bool = False,
@@ -184,12 +185,17 @@ class Store:
                 "GROUP BY b.id ORDER BY latest_added_at DESC, "
                 "b.file_stem COLLATE NOCASE, b.directory, b.id LIMIT 20) "
             )
-        elif random_picks:
+        elif random_picks or recommended:
             query = (
                 "WITH random_books AS (SELECT id FROM books "
                 "WHERE EXISTS (SELECT 1 FROM book_files WHERE book_id = books.id) "
-                "ORDER BY RANDOM() LIMIT 5) "
             )
+            if recommended:
+                query += (
+                    "AND finished = 0 "
+                    "AND goodreads_average > 4 AND goodreads_votes > 10 "
+                )
+            query += "ORDER BY RANDOM() LIMIT 5) "
         query += (
             "SELECT b.id AS book_id, b.title, b.file_stem, b.directory, b.favorite, "
             "b.finished, b.want_to_read, b.goodreads_average, b.goodreads_votes, "
@@ -201,7 +207,7 @@ class Store:
         )
         if recent:
             query += "JOIN recent_books r ON r.id = b.id "
-        elif random_picks:
+        elif random_picks or recommended:
             query += "JOIN random_books r ON r.id = b.id "
         conditions = []
         parameters = []
@@ -378,6 +384,10 @@ class Store:
     def random_books(self) -> list[Book]:
         with self.connect() as connection:
             return self._read_books(connection, random_picks=True)
+
+    def recommended_books(self) -> list[Book]:
+        with self.connect() as connection:
+            return self._read_books(connection, recommended=True)
 
     def book(self, book_id: int) -> Book | None:
         with self.connect() as connection:

@@ -16,6 +16,21 @@
     <p class="text-body-secondary">Your library is empty.</p>
     {% endif %}
   </section>
+  <section class="mb-5" aria-labelledby="recommended-heading">
+    <h2 id="recommended-heading" class="h2 mb-1">Recommended</h2>
+    <p class="text-body-secondary mb-4">Highly rated books for your next read.</p>
+    {% if recommended_books %}
+    <ul class="random-book-grid row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 list-unstyled mb-0">
+      {% for book in recommended_books %}
+      <li class="col">
+        {% include "_book_card.html" %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-body-secondary">No unfinished books rated above 4 with more than 10 votes.</p>
+    {% endif %}
+  </section>
   <section aria-labelledby="recent-heading">
     <h2 id="recent-heading" class="h2 mb-1">Recently Added</h2>
     <p class="text-body-secondary mb-4">The latest additions to the library.</p>

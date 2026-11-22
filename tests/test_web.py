@@ -6,6 +6,7 @@ from re import findall
 import pytest
 from PIL import Image
 
+from src.goodreads import GoodreadsRating
 from src.store import BookFile
 
 
@@ -334,6 +335,9 @@ def test_empty_home_links_to_categories_for_indexing(client):
     assert response.status_code == 200
     assert b">Recently Added</h2>" in response.data
     assert b">Random Picks</h2>" in response.data
+    assert (
+        b"No unfinished books rated above 4 with more than 10 votes." in response.data
+    )
     assert b"No books indexed yet" in response.data
     assert b'href="/categories">Categories</a> to index your books' in response.data
     assert b'action="/index"' not in response.data
@@ -361,3 +365,44 @@ def test_random_picks_limit_unique_books_and_keep_all_formats(store, count):
         assert book == store.book(book.id)
     if count <= 5:
         assert {book.id for book in picks} == {book.id for book in store.books()}
+
+
+@pytest.mark.parametrize("count", [2, 8])
+def test_home_recommends_up_to_five_unfinished_books_rated_above_four(
+    app, client, count
+):
+    store = app.extensions["store"]
+    eligible = [f"Recommended {index}" for index in range(count)]
+    titles = eligible + [
+        "Finished",
+        "Exactly four",
+        "Below four",
+        "Unrated",
+        "Ten votes",
+    ]
+    store.sync_files(
+        [
+            BookFile(f"/{title}.pdf", "pdf", f"{index:064x}")
+            for index, title in enumerate(titles)
+        ],
+        ratings={
+            **{("/", title): GoodreadsRating(4.01, 11) for title in eligible},
+            ("/", "Finished"): GoodreadsRating(5, 12),
+            ("/", "Exactly four"): GoodreadsRating(4, 12),
+            ("/", "Below four"): GoodreadsRating(3.99, 12),
+            ("/", "Ten votes"): GoodreadsRating(5, 10),
+        },
+    )
+    books = {book.title: book for book in store.books()}
+    store.set_finished(books["Finished"].id, True)
+
+    response = client.get("/")
+    assert response.status_code == 200
+    start = response.data.index(b">Recommended</h2>")
+    assert response.data.index(b">Random Picks</h2>") < start
+    end = response.data.index(b">Recently Added</h2>")
+    card_ids = findall(rb'href="/books/(\d+)"', response.data[start:end])
+    assert len(card_ids) == len(set(card_ids)) == min(count, 5)
+    assert {int(book_id) for book_id in card_ids} <= {
+        books[title].id for title in eligible
+    }

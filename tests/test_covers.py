@@ -13,13 +13,15 @@ from src.indexer import Indexer, hash_file
 from src.store import BookFile, ScanCancelled
 
 
-def make_pdf(path, color=(1, 0, 0), *, blanks=0, size=(600, 1000)):
+def make_pdf(path, color=(1, 0, 0), *, blanks=0, size=(600, 1000), metadata=None):
     with pymupdf.open() as document:
         for _ in range(blanks):
             document.new_page(width=size[0], height=size[1])
         page = document.new_page(width=size[0], height=size[1])
         if color is not None:
             page.draw_rect(page.rect, color=color, fill=color)
+        if metadata is not None:
+            document.set_metadata(metadata)
         document.save(path)
     return path
 
@@ -300,6 +302,72 @@ def test_indexing_prefers_pdf_caches_and_serves_png(app, client, library, monkey
     assert path.stat().st_mtime_ns == before
     assert indexer.covers.path(book.files[0]) == path
     assert pdf.exists()
+
+
+def test_refresh_metadata_regenerates_cover_and_updates_only_this_book(
+    app, client, library
+):
+    pdf = make_pdf(library / "Book.pdf", metadata={"author": "Original Author"})
+    make_epub(library / "Book.epub")
+    other_pdf = make_pdf(library / "Other.pdf")
+    client.post("/index")
+    store = app.extensions["store"]
+    book, other = store.books()
+    store.set_favorite(book.id, True)
+    store.set_want_to_read(book.id, True)
+    store.set_finished(book.id, True)
+    details_url = f"/books/{book.id}"
+    refresh_url = f"{details_url}/refresh-metadata"
+    cover_url = f"{details_url}/cover"
+    details = client.get(details_url).data
+    footer = details.split(b'<footer class="card-footer', 1)[1]
+    footer = footer.split(b"</footer>", 1)[0]
+    assert f'class="ms-auto" action="{refresh_url}" method="post"'.encode() in footer
+    assert b'aria-label="Refresh metadata" title="Refresh metadata"' in footer
+    assert client.get(refresh_url).status_code == 405
+
+    covers = app.extensions["indexer"].covers
+    Image.new("RGB", (333, 500), "green").save(covers.path(book.files[0]))
+    response = client.post(refresh_url, follow_redirects=True)
+    assert response.status_code == 200
+    assert len(response.history) == 1
+    assert response.history[0].status_code == 303
+    assert b"Book metadata refreshed" in response.data
+    before = client.get(cover_url)
+    with Image.open(BytesIO(before.data)) as image:
+        assert image.getpixel((166, 250)) == (255, 0, 0, 255)
+
+    pdf.unlink()
+    make_pdf(pdf, (0, 0, 1), metadata={"title": "New title", "author": "New Author"})
+    other_pdf.unlink()
+    response = client.post(refresh_url, follow_redirects=True)
+    assert b"New Author" in response.data
+    assert b"Original Author" not in response.data
+    assert [item.id for item in store.search_books("New title")] == [book.id]
+    refreshed = store.book(book.id)
+    assert refreshed.category == book.category
+    assert refreshed.favorite and refreshed.want_to_read and refreshed.finished
+    assert [file.id for file in refreshed.files] == [file.id for file in book.files]
+    assert refreshed.files[0].sha256 == hash_file(pdf)
+    assert refreshed.files[1] == book.files[1]
+    assert store.book(other.id) == other
+    response = client.get(cover_url, headers={"If-None-Match": before.headers["ETag"]})
+    assert response.status_code == 200
+    with Image.open(BytesIO(response.data)) as image:
+        assert image.getpixel((166, 250)) == (0, 0, 255, 255)
+
+
+def test_refresh_updates_details_when_cover_is_unavailable(app, client, library):
+    pdf = make_pdf(library / "Book.pdf")
+    client.post("/index")
+    book = app.extensions["store"].books()[0]
+    pdf.unlink()
+    make_pdf(pdf, color=None, metadata={"author": "New Author"})
+    response = client.post(f"/books/{book.id}/refresh-metadata", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"New Author" in response.data
+    assert b"The cover could not be regenerated" in response.data
+    assert client.get(f"/books/{book.id}/cover").status_code == 404
 
 
 def test_pdf_added_after_epub_replaces_cover_and_removing_it_restores_epub(

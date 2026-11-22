@@ -164,7 +164,7 @@ def create_app(config: Config | None = None) -> Flask:
             },
         )
 
-    def render_details(book: Book, *, error=""):
+    def render_details(book: Book, *, error="", message="", warning=""):
         similar_books = store.similar_books(book)
         category_books = store.books(category_id=book.category.id)
         previous_book = next_book = None
@@ -182,6 +182,8 @@ def create_app(config: Config | None = None) -> Flask:
             previous_book=previous_book,
             next_book=next_book,
             error=error,
+            message=message,
+            warning=warning,
             cover_available=indexer.covers.find(book.files) is not None,
             preview_format=preview_file.extension.upper() if preview_file else None,
             preview_start=0 if preview_file and preview_file.extension == "epub" else 1,
@@ -211,7 +213,43 @@ def create_app(config: Config | None = None) -> Flask:
 
     @app.get("/books/<int:book_id>")
     def details(book_id: int):
-        return render_details(find_book(book_id))
+        refreshed = request.args.get("refreshed")
+        return render_details(
+            find_book(book_id),
+            message="Book metadata refreshed." if refreshed == "1" else "",
+            warning=(
+                "Book details refreshed. The cover could not be regenerated."
+                if refreshed == "details"
+                else ""
+            ),
+        )
+
+    @app.post("/books/<int:book_id>/refresh-metadata")
+    def refresh_metadata(book_id: int):
+        book = find_book(book_id)
+        try:
+            cover_refreshed = indexer.refresh_book(book.id)
+        except IndexInProgress:
+            return render_details(
+                book, error="A library scan or metadata refresh is already running."
+            ), 409
+        except FileNotFoundError:
+            return render_details(
+                book, error="Book file not found. Reindex to update the file list."
+            ), 404
+        except OSError, sqlite3.Error:
+            app.logger.exception("Metadata refresh failed for book %s", book.id)
+            return render_details(book, error="Unable to refresh book metadata."), 500
+        if cover_refreshed is None:
+            abort(404)
+        return redirect(
+            url_for(
+                "details",
+                book_id=book.id,
+                refreshed="1" if cover_refreshed else "details",
+            ),
+            code=303,
+        )
 
     @app.post("/books/<int:book_id>/favorite")
     def set_favorite(book_id: int):

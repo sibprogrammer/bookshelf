@@ -31,6 +31,24 @@ class BookFile:
     metadata: Metadata = field(default_factory=Metadata)
 
 
+def group_files(files: list[BookFile]) -> dict[tuple[str, str], list[BookFile]]:
+    groups: dict[tuple[str, str], list[BookFile]] = {}
+    for file in files:
+        path = Path(file.file_path)
+        groups.setdefault((str(path.parent), path.stem), []).append(file)
+    return groups
+
+
+def file_details(file: BookFile) -> tuple[str, str | None, str]:
+    return (
+        file.sha256,
+        file.added_at.astimezone(UTC).isoformat(timespec="microseconds")
+        if file.added_at is not None
+        else None,
+        json.dumps(asdict(file.metadata), ensure_ascii=False),
+    )
+
+
 @dataclass(frozen=True)
 class Category:
     id: int
@@ -344,6 +362,30 @@ class Store:
             books = self._read_books(connection, book_id)
             return books[0] if books else None
 
+    def refresh_book(self, book: Book, files: list[BookFile]) -> bool:
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            paths = {
+                row["file_path"]
+                for row in connection.execute(
+                    "SELECT file_path FROM book_files WHERE book_id = ?", (book.id,)
+                )
+            }
+            if paths != {file.file_path for file in files}:
+                return False
+            metadata = merge_metadata(
+                [(file.extension, file.metadata) for file in files], book.file_title
+            )
+            connection.execute(
+                "UPDATE books SET title = ? WHERE id = ?", (metadata.title, book.id)
+            )
+            connection.executemany(
+                "UPDATE book_files SET sha256 = ?, added_at = ?, metadata = ? "
+                "WHERE book_id = ? AND file_path = ?",
+                [(*file_details(file), book.id, file.file_path) for file in files],
+            )
+            return True
+
     def sync_files(
         self,
         files: list[BookFile],
@@ -351,10 +393,7 @@ class Store:
         *,
         root: Path | None = None,
     ) -> int:
-        groups: dict[tuple[str, str], list[BookFile]] = {}
-        for file in files:
-            path = Path(file.file_path)
-            groups.setdefault((str(path.parent), path.stem), []).append(file)
+        groups = group_files(files)
         with self.connect() as connection:
             check_cancelled(cancel)
             connection.execute("BEGIN IMMEDIATE")
@@ -406,13 +445,7 @@ class Store:
                             book_id,
                             file.extension,
                             file.file_path,
-                            file.sha256,
-                            file.added_at.astimezone(UTC).isoformat(
-                                timespec="microseconds"
-                            )
-                            if file.added_at is not None
-                            else None,
-                            json.dumps(asdict(file.metadata), ensure_ascii=False),
+                            *file_details(file),
                         ),
                     )
                     connection.execute(

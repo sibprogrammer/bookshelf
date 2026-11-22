@@ -62,6 +62,24 @@ def test_failed_and_overlapping_index(app, client, library):
     assert app.extensions["store"].books() == before
 
 
+def test_refresh_metadata_rejects_busy_indexer_and_missing_files(app, client, library):
+    path = library / "Book.pdf"
+    path.write_text("abc")
+    client.post("/index")
+    store = app.extensions["store"]
+    before = store.books()
+    url = f"/books/{before[0].id}/refresh-metadata"
+    with app.extensions["indexer"].lock:
+        response = client.post(url)
+    assert response.status_code == 409
+    assert b"already running" in response.data
+    path.unlink()
+    response = client.post(url)
+    assert response.status_code == 404
+    assert b"Book file not found" in response.data
+    assert store.books() == before
+
+
 def test_open_book_uses_stored_path_and_handles_failures(app, client, library):
     path = library / "book's & name.pdf"
     path.write_text("abc")
@@ -97,6 +115,7 @@ def test_open_book_uses_stored_path_and_handles_failures(app, client, library):
 @pytest.mark.parametrize("book_id", ["invalid", "0", "-1", "99999", "9" * 30])
 def test_invalid_book_ids_are_404(client, book_id):
     assert client.get(f"/books/{book_id}").status_code == 404
+    assert client.post(f"/books/{book_id}/refresh-metadata").status_code == 404
     assert client.post(f"/books/{book_id}/files/1/open").status_code == 404
 
 
@@ -120,6 +139,8 @@ def test_cross_origin_actions_are_blocked(app, client, library, headers):
     app.extensions["open_book"] = calls.append
     url = f"/books/{book.id}/files/{book.files[0].id}/open"
     assert client.post(url, headers=headers).status_code == 403
+    refresh = client.post(f"/books/{book.id}/refresh-metadata", headers=headers)
+    assert refresh.status_code == 403
     assert calls == []
 
 

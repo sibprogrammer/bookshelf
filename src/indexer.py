@@ -11,7 +11,7 @@ from threading import Event, Lock
 
 from .covers import CoverError, Covers
 from .metadata import read_metadata
-from .store import BookFile, Store, check_cancelled
+from .store import BookFile, Store, check_cancelled, group_files
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,55 @@ class Indexer:
         self.cover_errors: list[str] = []
         self.progress: dict = {}
 
+    def _library_root(self) -> Path:
+        root = self.root.resolve(strict=True)
+        if not root.is_dir():
+            raise NotADirectoryError(f"books_dir must be a directory: {root}")
+        return root
+
+    @staticmethod
+    def _read_file(path: Path, cancel: Event | None = None) -> BookFile:
+        check_cancelled(cancel)
+        digest = hash_file(path, cancel)
+        return BookFile(
+            file_path=str(path),
+            extension=path.suffix[1:].lower(),
+            sha256=digest,
+            added_at=file_added_at(path.lstat()),
+            metadata=read_metadata(path),
+        )
+
+    def _update_cover(
+        self, files: list[BookFile], cancel: Event | None = None, *, force: bool = False
+    ) -> tuple[Path | None, str]:
+        try:
+            return self.covers.ensure(files, cancel, force=force), ""
+        except CoverError as error:
+            logger.warning("Cover unavailable: %s", error)
+            return None, str(error)
+
+    def refresh_book(self, book_id: int) -> bool | None:
+        """Reread the indexed formats for one book and rebuild its cover."""
+        if not self.lock.acquire(blocking=False):
+            raise IndexInProgress("Indexing is already in progress")
+        try:
+            book = self.store.book(book_id)
+            if book is None:
+                return None
+            root = self._library_root()
+            files = []
+            for file in book.files:
+                path = Path(file.file_path)
+                if not path.is_relative_to(root) or path.resolve(strict=True) != path:
+                    raise FileNotFoundError(path)
+                files.append(self._read_file(path))
+            cover, _ = self._update_cover(files, force=True)
+            if not self.store.refresh_book(book, files):
+                raise OSError("The indexed book changed during the refresh")
+            return cover is not None
+        finally:
+            self.lock.release()
+
     def reindex(self, cancel: Event | None = None) -> int:
         if not self.lock.acquire(blocking=False):
             raise IndexInProgress("Indexing is already in progress")
@@ -78,9 +127,7 @@ class Indexer:
         try:
             check_cancelled(cancel)
             report("Finding books")
-            root = self.root.resolve(strict=True)
-            if not root.is_dir():
-                raise OSError(f"books_dir must be a directory: {root}")
+            root = self._library_root()
             scanned_files = []
             pending_files = []
 
@@ -103,32 +150,18 @@ class Indexer:
                     pending_files.append(path)
             report("Indexing files", 0, len(pending_files))
             for position, path in enumerate(pending_files, start=1):
-                check_cancelled(cancel)
-                scanned_files.append(
-                    BookFile(
-                        file_path=str(path),
-                        extension=path.suffix[1:].lower(),
-                        sha256=hash_file(path, cancel),
-                        added_at=file_added_at(path.lstat()),
-                        metadata=read_metadata(path),
-                    )
-                )
+                scanned_files.append(self._read_file(path, cancel))
                 report("Indexing files", position, len(pending_files))
             self.cover_errors = []
-            groups: dict[tuple[str, str], list[BookFile]] = {}
-            for file in scanned_files:
-                path = Path(file.file_path)
-                groups.setdefault((str(path.parent), path.stem), []).append(file)
+            groups = group_files(scanned_files)
             active_covers = set()
             report("Updating covers", 0, len(groups))
             for position, files in enumerate(groups.values(), start=1):
-                check_cancelled(cancel)
-                try:
-                    cover = self.covers.ensure(files, cancel)
+                cover, error = self._update_cover(files, cancel)
+                if cover is not None:
                     active_covers.add(cover.name)
-                except CoverError as error:
-                    self.cover_errors.append(str(error))
-                    logger.warning("Cover unavailable: %s", error)
+                else:
+                    self.cover_errors.append(error)
                 report("Updating covers", position, len(groups))
             report("Saving library")
             count = self.store.sync_files(scanned_files, cancel, root=root)

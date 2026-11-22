@@ -194,14 +194,16 @@ class Covers:
             None,
         )
 
-    def ensure(self, files: list[BookFile], cancel: Event | None = None) -> Path:
+    def ensure(
+        self, files: list[BookFile], cancel: Event | None = None, *, force: bool = False
+    ) -> Path:
         """Prefer PDF, falling back to EPUB if the PDF cannot supply a cover."""
         self.directory.mkdir(parents=True, exist_ok=True)
         failures = []
         for file in preferred_sources(files):
             check_cancelled(cancel)
             target = self.path(file)
-            if self._valid(target):
+            if not force and self._valid(target):
                 return target
             try:
                 image = render_cover(Path(file.file_path), cancel)

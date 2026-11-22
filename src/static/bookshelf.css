@@ -37,6 +37,7 @@
 .book-preview-next { right: .5rem; }
 .book-preview-status { width: 333px; max-width: 100%; min-height: 1.5em; }
 .book-preview-modal { --bs-modal-width: 720px; }
+.book-preview-open { --bs-btn-close-bg: none; }
 .book-preview-modal .modal-content { height: min(92vh, 1200px); height: min(92dvh, 1200px); }
 .book-preview-modal .modal-body { display: flex; min-height: 0; }
 .book-preview-modal-page { position: relative; flex: 1; min-width: 0; background: var(--bs-tertiary-bg); }

@@ -77,6 +77,10 @@ def test_epub_details_offer_page_controls_and_modal(client, epub_book):
     assert b'id="book-preview-modal"' in response.data
     assert b'id="book-preview-modal-title">EPUB Preview</h2>' in response.data
     assert b"PDF preview" not in response.data
+    modal = response.data.split(b'id="book-preview-modal"', 1)[1]
+    open_url = f"/books/{epub_book.id}/files/{epub_book.files[0].id}/open"
+    assert f'action="{open_url}" method="post"'.encode() in modal
+    assert b'aria-label="Open EPUB externally"' in modal
 
 
 @pytest.mark.parametrize("size", ["", "large"])
@@ -164,6 +168,15 @@ def test_pdf_is_preferred_when_both_formats_are_present(
     assert b'id="book-preview-modal-title">EPUB Preview</h2>' in details.data
     assert b'data-preview-start="1"' in details.data
     assert b"EPUB preview" not in details.data
+    book = app.extensions["store"].book(epub_book.id)
+    pdf_file = next(file for file in book.files if file.extension == "pdf")
+    modal = details.data.split(b'id="book-preview-modal"', 1)[1]
+    open_url = f"/books/{book.id}/files/{pdf_file.id}/open"
+    assert f'action="{open_url}" method="post"'.encode() in modal
+    assert modal.index(b'aria-label="Open PDF externally"') < modal.index(
+        b'aria-label="Close preview"'
+    )
+    assert b'aria-label="Open EPUB externally"' not in modal
     assert client.get(f"/books/{epub_book.id}/preview/0").status_code == 404
     response = client.get(f"/books/{epub_book.id}/preview/1")
     assert response.status_code == 200

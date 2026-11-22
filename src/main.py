@@ -185,6 +185,7 @@ def create_app(config: Config | None = None) -> Flask:
             message=message,
             warning=warning,
             cover_available=indexer.covers.find(book.files) is not None,
+            preview_file=preview_file,
             preview_format=preview_file.extension.upper() if preview_file else None,
             preview_start=0 if preview_file and preview_file.extension == "epub" else 1,
             similar_books=similar_books,

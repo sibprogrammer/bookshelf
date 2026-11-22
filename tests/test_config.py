@@ -20,6 +20,7 @@ def test_config_defaults_and_relative_paths(config_file, tmp_path, monkeypatch):
     config = load_config()
     assert config.books_dir == tmp_path / "library"
     assert config.database_path == tmp_path / "data" / "bookshelf.db"
+    assert config.goodreads_ratings is True
 
 
 def test_explicit_config(config_file, tmp_path):
@@ -28,12 +29,14 @@ def test_explicit_config(config_file, tmp_path):
             {
                 "books_dir": str(tmp_path / "absolute-books"),
                 "database_path": "index.db",
+                "goodreads_ratings": False,
             }
         )
     )
     config = load_config()
     assert config.books_dir == tmp_path / "absolute-books"
     assert config.database_path == tmp_path / "index.db"
+    assert config.goodreads_ratings is False
 
 
 @pytest.mark.parametrize(
@@ -50,6 +53,7 @@ def test_explicit_config(config_file, tmp_path):
         "[]",
         '{"books_dir":42}',
         '{"books_dir":"books","database_path":null}',
+        '{"books_dir":"books","goodreads_ratings":"false"}',
     ],
 )
 def test_invalid_config(config_file, contents):

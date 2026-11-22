@@ -1,0 +1,10 @@
+{% if config.BOOKSHELF_CONFIG.goodreads_ratings and book.goodreads_rating is not none and book.goodreads_rating.votes > 0 %}
+{% set rating = book.goodreads_rating.average %}
+{% set average = '%.2f'|format(rating) %}
+<span class="book-rating-badge" role="img" aria-label="Rating {{ average }} out of 5" title="{{ average }}">
+  {% for star in range(5) %}
+  {% set fill = [0, [rating - star, 1]|min]|max %}
+  <span class="book-rating-star" style="--fill: {{ '%.2f'|format(fill * 100) }}%" aria-hidden="true">★</span>
+  {% endfor %}
+</span>
+{% endif %}

@@ -49,6 +49,7 @@
         {% endif %}
         {% include "_favorite_badge.html" %}
         {% include "_want_to_read_badge.html" %}
+        {% include "_rating_badge.html" %}
         {% include "_finished_badge.html" %}
       </div>
       {% if preview_format %}
@@ -86,6 +87,10 @@
             <dd class="text-break mb-3">{% if label == 'Published' %}<time datetime="{{ value }}">{{ value|published_date }}</time>{% else %}{{ value }}{% endif %}</dd>
             {% endif %}
             {% endfor %}
+            {% if goodreads_rating is not none and goodreads_rating.votes > 0 %}
+            <dt class="text-body-secondary small mb-1">Rating</dt>
+            <dd class="mb-0">{{ '%.2f'|format(goodreads_rating.average) }} of 5 ({{ '{:,}'.format(goodreads_rating.votes) }} {{ 'vote' if goodreads_rating.votes == 1 else 'votes' }})</dd>
+            {% endif %}
           </dl>
         </div>
         <footer class="card-footer bg-body d-flex flex-wrap align-items-center gap-2 py-3 px-4">

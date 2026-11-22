@@ -222,6 +222,23 @@ def test_metadata_titles_do_not_control_group_identity_or_change_ids(store):
     assert store.book(first_id).title == "File one"
 
 
+def test_store_removes_legacy_open_library_metadata(store):
+    store.sync_files([BookFile("/Book.pdf", "pdf", SHA256)])
+    (book,) = store.books()
+    with store.connect() as connection:
+        connection.execute("ALTER TABLE books ADD COLUMN open_library_metadata TEXT")
+        connection.execute(
+            "UPDATE books SET open_library_metadata = ?", ('{"rating":4}',)
+        )
+
+    migrated = Store(store.path)
+    assert migrated.book(book.id) == book
+    with migrated.connect() as connection:
+        columns = connection.execute("PRAGMA table_info(books)")
+        assert "open_library_metadata" not in {row["name"] for row in columns}
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
 def test_indexing_persists_metadata_and_rebuild_reuses_covers(
     library,
     store,
@@ -236,7 +253,7 @@ def test_indexing_persists_metadata_and_rebuild_reuses_covers(
         <dc:publisher>EPUB publisher</dc:publisher>
         <dc:identifier>urn:isbn:9780201616224</dc:identifier>""",
     )
-    indexer = Indexer(store, library)
+    indexer = Indexer(store, library, goodreads_ratings=False)
     assert indexer.reindex() == 1
     book = store.books()[0]
     assert book.title == "PDF title"
@@ -252,7 +269,7 @@ def test_indexing_persists_metadata_and_rebuild_reuses_covers(
 
     monkeypatch.setattr(covers_module, "render_cover", should_not_render)
     rebuilt = Store(tmp_path / "rebuilt.db")
-    second_indexer = Indexer(rebuilt, library)
+    second_indexer = Indexer(rebuilt, library, goodreads_ratings=False)
     second_indexer.covers = Covers(indexer.covers.directory)
     assert second_indexer.reindex() == 1
     assert rebuilt.books()[0].metadata == book.metadata

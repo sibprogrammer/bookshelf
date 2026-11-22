@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event
 
+from .goodreads import GoodreadsRating
 from .metadata import Metadata, merge_metadata
 from .similarity import SimilarBook, find_similar_books
 
@@ -66,6 +67,7 @@ class Book:
     favorite: bool = False
     finished: bool = False
     want_to_read: bool = False
+    goodreads_rating: GoodreadsRating | None = None
 
     @property
     def file_title(self) -> str:
@@ -98,11 +100,17 @@ class Store:
                 favorite INTEGER NOT NULL DEFAULT 0 CHECK(favorite IN (0, 1)),
                 finished INTEGER NOT NULL DEFAULT 0 CHECK(finished IN (0, 1)),
                 want_to_read INTEGER NOT NULL DEFAULT 0 CHECK(want_to_read IN (0, 1)),
+                goodreads_average REAL,
+                goodreads_votes INTEGER,
                 UNIQUE(directory, file_stem)
             )""")
             columns = {
                 row["name"] for row in connection.execute("PRAGMA table_info(books)")
             }
+            if "open_library_metadata" in columns:
+                connection.execute(
+                    "ALTER TABLE books DROP COLUMN open_library_metadata"
+                )
             if "favorite" not in columns:
                 connection.execute(
                     "ALTER TABLE books ADD COLUMN favorite INTEGER NOT NULL "
@@ -117,6 +125,14 @@ class Store:
                 connection.execute(
                     "ALTER TABLE books ADD COLUMN want_to_read INTEGER NOT NULL "
                     "DEFAULT 0 CHECK(want_to_read IN (0, 1))"
+                )
+            if "goodreads_average" not in columns:
+                connection.execute(
+                    "ALTER TABLE books ADD COLUMN goodreads_average REAL"
+                )
+            if "goodreads_votes" not in columns:
+                connection.execute(
+                    "ALTER TABLE books ADD COLUMN goodreads_votes INTEGER"
                 )
             connection.execute("""CREATE TABLE IF NOT EXISTS book_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -176,7 +192,7 @@ class Store:
             )
         query += (
             "SELECT b.id AS book_id, b.title, b.file_stem, b.directory, b.favorite, "
-            "b.finished, b.want_to_read, "
+            "b.finished, b.want_to_read, b.goodreads_average, b.goodreads_votes, "
             "c.id AS category_id, c.name AS category_name, "
             "f.id AS file_id, "
             "f.file_path, f.extension, f.sha256, f.added_at, f.metadata "
@@ -222,6 +238,10 @@ class Store:
                 bool(row["favorite"]),
                 bool(row["finished"]),
                 bool(row["want_to_read"]),
+                GoodreadsRating(row["goodreads_average"], row["goodreads_votes"])
+                if row["goodreads_average"] is not None
+                and row["goodreads_votes"] is not None
+                else None,
             )
             files.setdefault(key, []).append(
                 BookFile(
@@ -248,6 +268,7 @@ class Store:
                 favorite=favorite,
                 finished=finished,
                 want_to_read=want_to_read,
+                goodreads_rating=goodreads_rating,
             )
             for key, (
                 title,
@@ -257,6 +278,7 @@ class Store:
                 favorite,
                 finished,
                 want_to_read,
+                goodreads_rating,
             ) in books.items()
         ]
 
@@ -362,7 +384,24 @@ class Store:
             books = self._read_books(connection, book_id)
             return books[0] if books else None
 
-    def refresh_book(self, book: Book, files: list[BookFile]) -> bool:
+    def goodreads_checked_book_keys(self) -> set[tuple[str, str]]:
+        with self.connect() as connection:
+            return {
+                (row["directory"], row["file_stem"])
+                for row in connection.execute(
+                    "SELECT directory, file_stem FROM books "
+                    "WHERE goodreads_average IS NOT NULL "
+                    "AND goodreads_votes IS NOT NULL"
+                )
+            }
+
+    def refresh_book(
+        self,
+        book: Book,
+        files: list[BookFile],
+        *,
+        goodreads_rating: GoodreadsRating | None = None,
+    ) -> bool:
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             paths = {
@@ -379,6 +418,12 @@ class Store:
             connection.execute(
                 "UPDATE books SET title = ? WHERE id = ?", (metadata.title, book.id)
             )
+            if goodreads_rating is not None:
+                connection.execute(
+                    "UPDATE books SET goodreads_average = ?, goodreads_votes = ? "
+                    "WHERE id = ?",
+                    (goodreads_rating.average, goodreads_rating.votes, book.id),
+                )
             connection.executemany(
                 "UPDATE book_files SET sha256 = ?, added_at = ?, metadata = ? "
                 "WHERE book_id = ? AND file_path = ?",
@@ -392,8 +437,10 @@ class Store:
         cancel: Event | None = None,
         *,
         root: Path | None = None,
+        ratings: dict[tuple[str, str], GoodreadsRating] | None = None,
     ) -> int:
         groups = group_files(files)
+        ratings = ratings or {}
         with self.connect() as connection:
             check_cancelled(cancel)
             connection.execute("BEGIN IMMEDIATE")
@@ -420,12 +467,23 @@ class Store:
                 metadata = merge_metadata(
                     [(file.extension, file.metadata) for file in group], file_stem
                 )
+                rating = ratings.get((directory, file_stem))
                 connection.execute(
-                    "INSERT INTO books (file_stem, title, directory, category_id) "
-                    "VALUES (?, ?, ?, ?) "
+                    "INSERT INTO books (file_stem, title, directory, category_id, "
+                    "goodreads_average, goodreads_votes) VALUES (?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT(directory, file_stem) DO UPDATE SET "
-                    "title = excluded.title, category_id = excluded.category_id",
-                    (file_stem, metadata.title, directory, category_id),
+                    "title = excluded.title, category_id = excluded.category_id, "
+                    "goodreads_average = COALESCE(excluded.goodreads_average, "
+                    "books.goodreads_average), goodreads_votes = "
+                    "COALESCE(excluded.goodreads_votes, books.goodreads_votes)",
+                    (
+                        file_stem,
+                        metadata.title,
+                        directory,
+                        category_id,
+                        rating.average if rating is not None else None,
+                        rating.votes if rating is not None else None,
+                    ),
                 )
                 book_id = connection.execute(
                     "SELECT id FROM books WHERE directory = ? AND file_stem = ?",

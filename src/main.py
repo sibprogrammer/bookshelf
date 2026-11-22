@@ -23,7 +23,9 @@ def create_app(config: Config | None = None) -> Flask:
     app = Flask(__name__)
     app.config["BOOKSHELF_CONFIG"] = config
     store = Store(config.database_path)
-    indexer = Indexer(store, config.books_dir)
+    indexer = Indexer(
+        store, config.books_dir, goodreads_ratings=config.goodreads_ratings
+    )
     app.extensions.update(store=store, indexer=indexer, open_book=open_local_book)
 
     @app.template_filter("published_date")
@@ -185,6 +187,9 @@ def create_app(config: Config | None = None) -> Flask:
             message=message,
             warning=warning,
             cover_available=indexer.covers.find(book.files) is not None,
+            goodreads_rating=book.goodreads_rating
+            if config.goodreads_ratings
+            else None,
             preview_file=preview_file,
             preview_format=preview_file.extension.upper() if preview_file else None,
             preview_start=0 if preview_file and preview_file.extension == "epub" else 1,
